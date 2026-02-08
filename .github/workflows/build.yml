@@ -7,33 +7,39 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    
+    env:
+      NODE_OPTIONS: "--max-old-space-size=4096"  # optional, helps Metro
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
           node-version: 18
-      
+
+      - name: Verify Node
+        run: node -v
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --clean
-      
-      - name: Set Node Binary Path
+
+      - name: Set Node Binary Path for Xcode
         run: |
           cd ios
-          cat > .xcode.env.local << EOF
-          export NODE_BINARY=$(command -v node)
-          EOF
-      
+          echo "export NODE_BINARY=$(which node)" > .xcode.env.local
+
       - name: Install Pods
         run: |
           cd ios
           pod install
-      
+
+      - name: Install xcpretty
+        run: gem install xcpretty
+
       - name: Build unsigned archive
         run: |
           cd ios
@@ -45,8 +51,15 @@ jobs:
             -archivePath ./build/NightReel.xcarchive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-      
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcode.log | xcpretty --fail-fast
+
+      - name: Upload Xcode Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-log
+          path: ios/xcode.log
+
       - name: Create IPA
         run: |
           cd ios
@@ -54,7 +67,7 @@ jobs:
           cp -r ./build/NightReel.xcarchive/Products/Applications/*.app Payload/
           zip -r NightReel.ipa Payload
           rm -rf Payload
-      
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
