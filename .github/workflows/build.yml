@@ -42,63 +42,64 @@ jobs:
           SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -A 100 "Schemes:" | grep -v "Schemes:" | head -n 1 | xargs)
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
-          echo "📦 Workspace: $WORKSPACE"
+          echo "📦 Using: $WORKSPACE"
           echo "🎯 Scheme: $SCHEME"
 
-      - name: Build unsigned archive
+      - name: Build .app (no archive)
         run: |
           cd ios
           
-          # Build and save full log
-          xcodebuild archive \
+          xcodebuild build \
             -workspace "${{ steps.detect.outputs.workspace }}" \
             -scheme "${{ steps.detect.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath ./build/NightReel.xcarchive \
+            -derivedDataPath ./DerivedData \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee xcode-full.log
+            ONLY_ACTIVE_ARCH=NO \
+            2>&1 | tee build.log
           
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
           
-          # Extract only errors and warnings
-          echo "=== 🔍 ERRORS AND WARNINGS ===" > xcode-errors.log
-          grep -i "error:" xcode-full.log >> xcode-errors.log || true
-          grep -i "warning:" xcode-full.log >> xcode-errors.log || true
-          grep -i "failed" xcode-full.log >> xcode-errors.log || true
-          grep -i "exception" xcode-full.log >> xcode-errors.log || true
+          # Show only errors/warnings
+          echo ""
+          echo "=== 🔍 Errors & Warnings ==="
+          grep -iE "error:|warning:|failed|exception" build.log | head -50 || echo "✅ No critical issues"
           
-          # Show filtered output
-          cat xcode-errors.log
-          
-          # Check build result
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
             echo ""
-            echo "❌ BUILD FAILED - Check xcode-errors.log artifact for details"
-            echo "Full log saved in xcode-full.log artifact"
+            echo "❌ Build failed - check artifacts for full log"
             exit 1
           fi
           
-          if [ -d "./build/NightReel.xcarchive" ]; then
-            echo "✅ Archive created successfully"
-          else
-            echo "❌ Archive not found!"
-            exit 1
-          fi
+          echo "✅ Build completed"
 
-      - name: Create IPA
+      - name: Find and package .app
         run: |
           cd ios
+          
+          # Find the .app bundle
+          APP_PATH=$(find ./DerivedData -name "*.app" -path "*/Release-iphoneos/*" | head -n 1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ No .app found!"
+            echo "Searching all paths:"
+            find ./DerivedData -name "*.app"
+            exit 1
+          fi
+          
+          echo "Found .app at: $APP_PATH"
+          
+          # Create IPA
           mkdir -p Payload
-          cp -r ./build/NightReel.xcarchive/Products/Applications/*.app Payload/
+          cp -r "$APP_PATH" Payload/
           zip -qr NightReel.ipa Payload
+          rm -rf Payload
           
           IPA_SIZE=$(ls -lh NightReel.ipa | awk '{print $5}')
           echo "✅ IPA created: $IPA_SIZE"
-          
-          rm -rf Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -106,33 +107,9 @@ jobs:
           name: NightReel-IPA
           path: ios/NightReel.ipa
 
-      - name: Upload Error Log
+      - name: Upload build log (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: errors-only
-          path: ios/xcode-errors.log
-
-      - name: Upload Full Log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-xcode-log
-          path: ios/xcode-full.log
-
-      - name: Build Summary
-        if: always()
-        run: |
-          echo "### 📊 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f ios/NightReel.ipa ]; then
-            IPA_SIZE=$(ls -lh ios/NightReel.ipa | awk '{print $5}')
-            echo "✅ **IPA Created:** $IPA_SIZE" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Build Failed**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Errors:**" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            head -50 ios/xcode-errors.log >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No error log found" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
+          name: build-log
+          path: ios/build.log
