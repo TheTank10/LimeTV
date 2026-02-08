@@ -1,0 +1,55 @@
+name: Build iOS IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios --clean
+      
+      - name: Install Pods
+        run: |
+          cd ios
+          pod install
+      
+      - name: Build Archive
+        run: |
+          cd ios
+          xcodebuild -workspace *.xcworkspace \
+            -scheme NightReel \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            -arch arm64 \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            archive
+      
+      - name: Create IPA
+        run: |
+          cd ios
+          mkdir -p build/Payload
+          cp -r build/App.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r NightReel.ipa Payload
+      
+      - name: Upload IPA
+        uses: actions/upload-artifact@v3
+        with:
+          name: NightReel-IPA
+          path: ios/build/NightReel.ipa
