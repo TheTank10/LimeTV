@@ -22,12 +22,29 @@ jobs:
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --clean
       
+      - name: Fix Podfile for nullability warnings
+        run: |
+          cd ios
+          cat >> Podfile << 'EOF'
+          
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['WARNING_CFLAGS'] ||= ['$(inherited)', '-Wno-nullability-completeness']
+                config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+              end
+            end
+          end
+          EOF
+      
       - name: Install Pods
         run: |
           cd ios
           pod install
       
       - name: Build Archive
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           cd ios
           xcodebuild -workspace *.xcworkspace \
@@ -36,8 +53,11 @@ jobs:
             -archivePath build/App.xcarchive \
             -arch arm64 \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE="" \
             archive
       
       - name: Create IPA
