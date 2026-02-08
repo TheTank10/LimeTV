@@ -38,14 +38,32 @@ jobs:
         id: detect
         run: |
           cd ios
-          WORKSPACE=$(ls *.xcworkspace | head -n 1)
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -A 100 "Schemes:" | grep -v "Schemes:" | head -n 1 | xargs)
+          
+          # Properly find .xcworkspace (not the contents file)
+          WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" -type d | head -n 1 | sed 's|^\./||')
+          
+          if [ -z "$WORKSPACE" ]; then
+            echo "❌ No workspace found!"
+            ls -la
+            exit 1
+          fi
+          
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
+          echo "📦 Workspace: $WORKSPACE"
+          
+          # Get scheme
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>&1 | grep -A 100 "Schemes:" | grep -v "Schemes:" | grep -v "^$" | head -n 1 | xargs)
+          
+          if [ -z "$SCHEME" ]; then
+            echo "❌ No scheme found!"
+            xcodebuild -list -workspace "$WORKSPACE"
+            exit 1
+          fi
+          
           echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
-          echo "📦 Using: $WORKSPACE"
           echo "🎯 Scheme: $SCHEME"
 
-      - name: Build .app (no archive)
+      - name: Build .app
         run: |
           cd ios
           
@@ -63,14 +81,12 @@ jobs:
           
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
           
-          # Show only errors/warnings
           echo ""
           echo "=== 🔍 Errors & Warnings ==="
           grep -iE "error:|warning:|failed|exception" build.log | head -50 || echo "✅ No critical issues"
           
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo ""
-            echo "❌ Build failed - check artifacts for full log"
+            echo "❌ Build failed"
             exit 1
           fi
           
@@ -80,26 +96,22 @@ jobs:
         run: |
           cd ios
           
-          # Find the .app bundle
           APP_PATH=$(find ./DerivedData -name "*.app" -path "*/Release-iphoneos/*" | head -n 1)
           
           if [ -z "$APP_PATH" ]; then
             echo "❌ No .app found!"
-            echo "Searching all paths:"
             find ./DerivedData -name "*.app"
             exit 1
           fi
           
-          echo "Found .app at: $APP_PATH"
+          echo "Found: $APP_PATH"
           
-          # Create IPA
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr NightReel.ipa Payload
           rm -rf Payload
           
-          IPA_SIZE=$(ls -lh NightReel.ipa | awk '{print $5}')
-          echo "✅ IPA created: $IPA_SIZE"
+          echo "✅ IPA: $(ls -lh NightReel.ipa | awk '{print $5}')"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
