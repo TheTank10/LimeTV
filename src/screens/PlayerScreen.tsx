@@ -14,7 +14,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
-import PrefersHomeIndicatorAutoHidden from 'react-native-home-indicator';
+//import PrefersHomeIndicatorAutoHidden from 'react-native-home-indicator';
 
 interface SubtitleOption {
   title: string;
@@ -147,7 +147,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <PrefersHomeIndicatorAutoHidden />
       {/* Video with tap detection */}
       <Pressable style={styles.videoContainer} onPress={handleScreenTap}>
         <Video
