@@ -1,67 +1,70 @@
-import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert, Platform } from 'react-native';
-//import * as FileSystem from 'expo-file-system/legacy';
-//import * as MediaLibrary from 'expo-media-library';
+import React, { useState, useEffect } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SPACING, COLORS, FONT_SIZES, BORDER_RADIUS } from '../constants';
 
 interface DetailActionButtonsProps {
   onPlay: () => void;
-  videoUrl?: string;
+  itemId: number;
   title: string;
 }
 
+const MY_LIST_KEY = '@limetv_my_list';
+
 /**
- * Action buttons for detail screen (Play, Download, Share)
+ * Action buttons for detail screen (Play, My List, Share)
  */
 export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({ 
   onPlay, 
-  videoUrl,
+  itemId,
   title 
 }) => {
-  const [downloading, setDownloading] = React.useState(false);
+  const [isInList, setIsInList] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  //const handleDownload = async () => {
-  //  if (!videoUrl) {
-  //    Alert.alert('Error', 'No video available to download');
-  //    return;
-  //  }
+  // Check if item is in list on mount
+  useEffect(() => {
+    checkIfInList();
+  }, [itemId]);
 
-    // Note: HLS streams (.m3u8) can't be downloaded directly
-  //  if (videoUrl.includes('.m3u8')) {
-      Alert.alert('Not Supported', 'HLS streams cannot be downloaded. Only MP4 files are supported.');
-  //    return;
-  //  }
+  const checkIfInList = async () => {
+    try {
+      const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
+      if (myListJson) {
+        const myList = JSON.parse(myListJson);
+        setIsInList(myList.includes(itemId));
+      }
+    } catch (error) {
+      console.error('Error checking list:', error);
+    }
+  };
 
-  //  try {
-  //    setDownloading(true);
+  const handleMyListToggle = async () => {
+    try {
+      setLoading(true);
+      const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
+      let myList: number[] = myListJson ? JSON.parse(myListJson) : [];
 
-      // Request permissions
-  //    const { status } = await MediaLibrary.requestPermissionsAsync();
-  //    if (status !== 'granted') {
-  //      Alert.alert('Permission Required', 'Please grant media library access to download videos');
-  //      return;
-  //    }
+      if (isInList) {
+        // Remove from list
+        myList = myList.filter(id => id !== itemId);
+        setIsInList(false);
+      } else {
+        // Add to list
+        myList.push(itemId);
+        setIsInList(true);
+      }
 
-      // Create file name
-  //    const fileName = `${title.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.mp4`;
-  //    const fileUri = FileSystem.documentDirectory + fileName;
-
-      // Download file
-   //   const { uri } = await FileSystem.downloadAsync(videoUrl, fileUri);
-      
-      // Save to photo library
-  //    await MediaLibrary.createAssetAsync(uri);
-  //    Alert.alert('Success', 'Video downloaded to your photo library');
-  //  } catch (error) {
-  //    console.error('Download error:', error);
-  //    Alert.alert('Download Failed', 'Could not download video');
-  //  } finally {
-  //    setDownloading(false);
-  //  }
-  //};
+      await AsyncStorage.setItem(MY_LIST_KEY, JSON.stringify(myList));
+    } catch (error) {
+      console.error('Error updating list:', error);
+      Alert.alert('Error', 'Could not update your list');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleShare = () => {
-    // Implement share functionality later
     Alert.alert('Share', 'Share functionality coming soon');
   };
 
@@ -72,16 +75,14 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
       </TouchableOpacity>
       
       <TouchableOpacity 
-        style={[styles.iconButton, downloading && styles.iconButtonDisabled]} 
-        //onPress={handleDownload}
-        disabled={downloading}
+        style={[styles.iconButton, loading && styles.iconButtonDisabled]} 
+        onPress={handleMyListToggle}
+        disabled={loading}
       >
         <Text style={styles.iconButtonText}>
-          {downloading ? '⏳' : '⬇'}
+          {isInList ? '✓' : '+'}
         </Text>
-        <Text style={styles.iconButtonLabel}>
-          {downloading ? 'Saving...' : 'Download'}
-        </Text>
+        <Text style={styles.iconButtonLabel}>My List</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.iconButton} onPress={handleShare}>
@@ -124,9 +125,10 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   iconButtonText: {
-    fontSize: 20,
+    fontSize: 24,
     color: COLORS.text,
     marginBottom: 2,
+    fontWeight: 'bold',
   },
   iconButtonLabel: {
     fontSize: FONT_SIZES.xs,

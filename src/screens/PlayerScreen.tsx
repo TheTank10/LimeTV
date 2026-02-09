@@ -1,9 +1,8 @@
 // screens/PlayerScreen.tsx
-import React, { useState } from 'react';
-import { View, StyleSheet, Modal, TouchableOpacity, Text, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, StatusBar } from 'react-native';
 import VideoPlayer from 'react-native-media-console';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import Orientation from 'react-native-orientation-locker';
 
 interface SubtitleOption {
   title: string;
@@ -26,93 +25,68 @@ interface PlayerScreenProps {
 export const PlayerScreen: React.FC<PlayerScreenProps> = ({ route, navigation }) => {
   const { videoUrl, title, subtitle, subtitles = [] } = route.params;
   
-  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
-  const [selectedSubtitleTitle, setSelectedSubtitleTitle] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const textTracks = subtitles.map(sub => ({
+  useEffect(() => {
+    // Lock to landscape when component mounts
+    Orientation.lockToLandscape();
+    StatusBar.setHidden(true);
+
+    return () => {
+      // Reset to portrait when leaving
+      Orientation.lockToPortrait();
+      StatusBar.setHidden(false);
+    };
+  }, []);
+
+  // Convert subtitles to textTracks format
+  const textTracks = subtitles.map((sub) => ({
     title: sub.title,
     language: sub.language as any,
-    type: sub.uri.endsWith('.vtt') ? ('text/vtt' as any) : ('application/x-subrip' as any),
+    type: 'application/x-subrip' as any,
     uri: sub.uri,
   }));
 
-  const handleSubtitleSelect = (subTitle: string) => {
-    setSelectedSubtitleTitle(subTitle);
-    setShowSubtitleMenu(false);
+  const handleEnterFullscreen = () => {
+    setIsFullscreen(true);
+    Orientation.lockToLandscape();
+    StatusBar.setHidden(true);
   };
 
-  const handleSubtitleOff = () => {
-    setSelectedSubtitleTitle(null);
-    setShowSubtitleMenu(false);
+  const handleExitFullscreen = () => {
+    setIsFullscreen(false);
+    Orientation.lockToPortrait();
+    StatusBar.setHidden(false);
+  };
+
+  const handleBack = () => {
+    Orientation.lockToPortrait();
+    StatusBar.setHidden(false);
+    navigation.goBack();
   };
 
   return (
     <View style={styles.container}>
       <VideoPlayer
         source={{ uri: videoUrl }}
-        navigator={navigation}
-        onBack={() => navigation.goBack()}
+        onBack={handleBack}
+        onEnterFullscreen={handleEnterFullscreen}
+        onExitFullscreen={handleExitFullscreen}
         title={title}
         textTracks={textTracks}
         selectedTextTrack={
-          selectedSubtitleTitle
-            ? ({ type: 'title', value: selectedSubtitleTitle } as any)
-            : ({ type: 'disabled' } as any)
+          textTracks.length > 0
+            ? {
+                type: 'language' as any,
+                value: textTracks[0].language,
+              }
+            : undefined
         }
+        resizeMode="contain"
+        disableBack={false}
+        disableVolume={false}
+        disableFullscreen={false}
       />
-
-      {subtitles.length > 0 && (
-        <TouchableOpacity
-          style={styles.subtitleButton}
-          onPress={() => setShowSubtitleMenu(true)}
-        >
-          <Ionicons name="chatbox-outline" size={24} color="#fff" />
-        </TouchableOpacity>
-      )}
-
-      <Modal
-        visible={showSubtitleMenu}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowSubtitleMenu(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSubtitleMenu(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={styles.subtitlePanel}>
-            <SafeAreaView edges={['bottom']}>
-              <Text style={styles.panelTitle}>Subtitles</Text>
-              
-              <ScrollView>
-                <TouchableOpacity
-                  style={styles.subtitleOption}
-                  onPress={handleSubtitleOff}
-                >
-                  <Text style={styles.subtitleText}>Off</Text>
-                  {!selectedSubtitleTitle && (
-                    <Ionicons name="checkmark" size={24} color="#fff" />
-                  )}
-                </TouchableOpacity>
-
-                {subtitles.map((sub, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.subtitleOption}
-                    onPress={() => handleSubtitleSelect(sub.title)}
-                  >
-                    <Text style={styles.subtitleText}>{sub.title}</Text>
-                    {selectedSubtitleTitle === sub.title && (
-                      <Ionicons name="checkmark" size={24} color="#fff" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </SafeAreaView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 };
@@ -121,48 +95,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  subtitleButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
-  },
-  subtitlePanel: {
-    backgroundColor: '#1a1a1a',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '60%',
-    paddingTop: 20,
-  },
-  panelTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  subtitleOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  subtitleText: {
-    fontSize: 16,
-    color: '#fff',
   },
 });

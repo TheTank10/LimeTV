@@ -12,8 +12,6 @@ export const useContentLoader = (mediaType: MediaType) => {
   }, [mediaType]);
 
   const loadContent = async () => {
-    console.log('Loading content for:', mediaType);
-
     setHeroLoading(true);
     setHeroItem(null);
     setCategories([]);
@@ -28,7 +26,6 @@ export const useContentLoader = (mediaType: MediaType) => {
 
       // Load lazy categories after a short delay (1 second)
       setTimeout(async () => {
-        console.log('>>> Loading lazy categories...');
         const lazyCategories = await fetchLazyCategories(mediaType);
         
         // Replace loading placeholders with actual data

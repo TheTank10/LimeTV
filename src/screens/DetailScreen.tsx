@@ -94,6 +94,18 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       videoUrl,
       title: displayTitle,
       subtitle,
+      subtitles: [
+        {
+          title: 'Spanish',
+          language: 'en',
+          uri: 'https://images.febbox.com/subtilte/2026/01/29/697c1bf68ef78.srt',
+        },
+        {
+          title: 'French',
+          language: 'fr',
+          uri: 'https://images.febbox.com/subtilte/2026/01/29/697bc21f29da9.srt',
+        },
+      ],
     });
   };
 
@@ -110,17 +122,17 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       title: displayTitle,
       subtitle,
       subtitles: [
-      {
-        title: 'English',
-        language: 'en',
-        uri: 'https://images.febbox.com/subtilte/2026/01/29/697e09db81b11.srt',
-      },
-      {
-        title: 'French',
-        language: 'fr',
-        uri: 'https://images.febbox.com/subtilte/2026/01/29/697bc21f29da9.srt',
-      },
-    ],
+        {
+          title: 'Spanish',
+          language: 'en',
+          uri: 'https://images.febbox.com/subtilte/2026/01/29/697c1bf68ef78.srt',
+        },
+        {
+          title: 'French',
+          language: 'fr',
+          uri: 'https://images.febbox.com/subtilte/2026/01/29/697bc21f29da9.srt',
+        },
+      ],
     });
   };
 
@@ -184,7 +196,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         {/* Action Buttons */}
         <DetailActionButtons 
           onPlay={handlePlay}
-          videoUrl={getStreamingUrl()}
+          itemId={item.id}
           title={displayTitle}
         />
 

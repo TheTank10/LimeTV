@@ -53,9 +53,7 @@ export const fetchContent = async (type: MediaType) => {
     const [heroResponse, ...categoryResponses] = await Promise.all([
       tmdbClient.get(config.hero),
       ...config.priority.map(async (endpoint, index) => {
-        console.log(`   [${index}] Fetching: ${endpoint.title}...`);
         const response = await tmdbClient.get(endpoint.url);
-        console.log(`   ✓ [${index}] ${endpoint.title}: ${response.data.results?.length} items`);
         return response;
       }),
     ]);
@@ -99,9 +97,7 @@ export const fetchLazyCategories = async (type: MediaType): Promise<Category[]> 
   try {
     const responses = await Promise.all(
       config.lazy.map(async (endpoint, index) => {
-        console.log(`   [lazy-${index}] Fetching: ${endpoint.title}...`);
         const response = await tmdbClient.get(endpoint.url);
-        console.log(`   ✓ [lazy-${index}] ${endpoint.title}: ${response.data.results?.length} items`);
         return response;
       })
     );
@@ -123,16 +119,11 @@ export const fetchLazyCategories = async (type: MediaType): Promise<Category[]> 
  * Search for movies and TV shows
  */
 export const searchContent = async (query: string): Promise<Movie[]> => {
-  console.log('=== SEARCH ===');
-  console.log('Query:', query);
-
   if (!query.trim()) {
-    console.log('Empty query, returning empty results');
     return [];
   }
 
   try {
-    console.log('>>> Searching...');
     const response = await tmdbClient.get('/search/multi', {
       params: { query: encodeURIComponent(query) },
     });
@@ -144,7 +135,7 @@ export const searchContent = async (query: string): Promise<Movie[]> => {
 
     return filtered;
   } catch (error: unknown) {
-    console.error('❌ SEARCH ERROR:');
+    console.error('SEARCH ERROR:');
 
     if (axios.isAxiosError(error)) {
       console.error('  Status:', error.response?.status);

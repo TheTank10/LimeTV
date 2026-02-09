@@ -45,9 +45,9 @@ jobs:
           WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" -type d | head -n 1 | sed 's|^\./||')
           
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
-          echo "scheme=NightReel" >> $GITHUB_OUTPUT
+          echo "scheme=LimeTV" >> $GITHUB_OUTPUT
           echo "Workspace: $WORKSPACE"
-          echo "Scheme: NightReel"
+          echo "Scheme: LimeTV"
 
       - name: Build .app
         run: |
@@ -72,7 +72,7 @@ jobs:
           grep -iE "error:|warning:|failed|exception" build.log | head -50 || echo "No critical issues"
           
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
-            echo "❌ Build failed"
+            echo "Build failed"
             exit 1
           fi
           
@@ -85,25 +85,25 @@ jobs:
           APP_PATH=$(find ./DerivedData -name "*.app" -type d | head -n 1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "❌ No .app found!"
+            echo "No .app found!"
             find ./DerivedData -name "*.app"
             exit 1
           fi
           
-          echo "✅ Found .app at: $APP_PATH"
+          echo "Found .app at: $APP_PATH"
           
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -qr NightReel.ipa Payload
+          zip -qr LimeTV.ipa Payload
           rm -rf Payload
           
-          echo "✅ IPA: $(ls -lh NightReel.ipa | awk '{print $5}')"
+          echo "IPA: $(ls -lh LimeTV.ipa | awk '{print $5}')"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: NightReel-IPA
-          path: ios/NightReel.ipa
+          name: LimeTV-IPA
+          path: ios/LimeTV.ipa
 
       - name: Upload build log (on failure)
         if: failure()
@@ -117,10 +117,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: "NightReel Build #${{ github.run_number }}"
-          files: ios/NightReel.ipa
+          name: "LimeTV Build #${{ github.run_number }}"
+          files: ios/LimeTV.ipa
           body: |
-            **NightReel IPA** - Build #${{ github.run_number }}
+            **LimeTV IPA** - Build #${{ github.run_number }}
             
             **Tap the IPA file below to download on iPhone**
             
