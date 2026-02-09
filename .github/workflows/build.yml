@@ -4,6 +4,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
@@ -43,8 +46,8 @@ jobs:
           
           echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
           echo "scheme=NightReel" >> $GITHUB_OUTPUT
-          echo "📦 Workspace: $WORKSPACE"
-          echo "🎯 Scheme: NightReel"
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: NightReel"
 
       - name: Build .app
         run: |
@@ -66,14 +69,14 @@ jobs:
           
           echo ""
           echo "=== 🔍 Errors & Warnings ==="
-          grep -iE "error:|warning:|failed|exception" build.log | head -50 || echo "✅ No critical issues"
+          grep -iE "error:|warning:|failed|exception" build.log | head -50 || echo "No critical issues"
           
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
             echo "❌ Build failed"
             exit 1
           fi
           
-          echo "✅ Build completed"
+          echo "Build completed"
 
       - name: Find and package .app
         run: |
@@ -111,16 +114,21 @@ jobs:
 
       - name: Create Release with IPA
         if: success()
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: NightReel Latest Build
+          tag_name: v1.0.${{ github.run_number }}
+          name: "NightReel Build #${{ github.run_number }}"
           files: ios/NightReel.ipa
           body: |
-            NightReel IPA - Latest Build
+            **NightReel IPA** - Build #${{ github.run_number }}
             
             **Tap the IPA file below to download on iPhone**
             
-            Commit: ${{ github.sha }}
+            **Details:**
+            - Commit: `${{ github.sha }}`
+            - Branch: `${{ github.ref_name }}`
+            - Build Date: ${{ github.event.head_commit.timestamp }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
