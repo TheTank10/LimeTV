@@ -33,8 +33,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-video",
-      "./plugins/withHiddenHomeIndicator"
+      "expo-video"
     ],
     "extra": {
       "eas": {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -66,6 +66,12 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     player.timeUpdateEventInterval = 0.1;
     player.play();
   });
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      autoHideHomeIndicator: true,
+    });
+  }, [navigation]);
 
   useEffect(() => {
     Audio.setAudioModeAsync({
