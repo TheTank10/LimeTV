@@ -17,6 +17,7 @@ import * as NavigationBar from "expo-navigation-bar";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Audio } from 'expo-av';
+import PrefersHomeIndicatorAutoHidden from 'react-native-home-indicator';
 
 interface SubtitleOption {
   title: string;
@@ -48,6 +49,7 @@ type Props = {
 
 export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const { videoUrl, subtitles = [] } = route.params;
+  const [hideIndicator, setHideIndicator] = useState(false);
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -66,6 +68,21 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     player.timeUpdateEventInterval = 0.1;
     player.play();
   });
+
+  useEffect(() => {
+    // Start with indicator visible
+    setHideIndicator(false);
+    
+    // Hide after 3 seconds
+    const timer = setTimeout(() => {
+      setHideIndicator(true);
+    }, 3000);
+
+    return () => {
+      clearTimeout(timer);
+      setHideIndicator(false);
+    };
+  }, []);
 
   useEffect(() => {
     Audio.setAudioModeAsync({
@@ -230,6 +247,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
+      {hideIndicator && <PrefersHomeIndicatorAutoHidden />}
       <VideoView
         player={player}
         style={styles.video}
