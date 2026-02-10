@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../constants';
@@ -26,6 +26,27 @@ import {
   getSimilarContent,
 } from '../utils/detailHelpers';
 
+const FEMBOX_API_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NzAzMTcwMTUsIm5iZiI6MTc3MDMxNzAxNSwiZXhwIjoxODAxNDIxMDM1LCJkYXRhIjp7InVpZCI6MTM5MzkyMSwidG9rZW4iOiJlYWI1ODBiZTA1MTg5NWExZWZhMWYxNDkwMGIwOTIwNSJ9fQ.n_F2wiMBUoKymIHCpMips1sPpbQi15Qsh5fsm4KT0Ok';
+const FEMBOX_BASE_URL = 'https://fembox.aether.mom';
+
+interface FemboxSubtitle {
+  language: string;
+  url: string;
+  name: string;
+  upload_date: string;
+}
+
+interface FemboxResponse {
+  hls: string;
+  subtitles: FemboxSubtitle[];
+}
+
+interface PlayerSubtitle {
+  title: string;
+  language: string;
+  uri: string;
+}
+
 /**
  * Detail screen for movies and TV shows
  * Displays comprehensive information including cast, episodes, trailers, and similar content
@@ -39,6 +60,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
 
   // Track selected episode for TV shows
   const [selectedEpisode, setSelectedEpisode] = useState(1);
+  const [loadingStream, setLoadingStream] = useState(false);
 
   // Load content details
   const { details, loading, error, loadDetails } = useContentDetails(item.id, mediaType);
@@ -63,15 +85,46 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   const topCast = details?.credits.cast.slice(0, 15) || [];
 
   /**
-   * Construct streaming URL based on media type
+   * Fetch streaming data from Fembox API
    */
-  const getStreamingUrl = (episodeNumber?: number): string => {
-    if (isTVShow) {
-      const episode = episodeNumber || selectedEpisode;
-      return `https://streams.icefy.top/tv/${item.id}/${selectedSeason}/${episode}/bump/master.m3u8`;
-    } else {
-      return `https://streams.icefy.top/movie/${item.id}/bump/master.m3u8`;
+  const fetchStreamingData = async (episodeNumber?: number): Promise<FemboxResponse | null> => {
+    try {
+      setLoadingStream(true);
+      let url: string;
+
+      if (isTVShow) {
+        const episode = episodeNumber || selectedEpisode;
+        url = `${FEMBOX_BASE_URL}/hls/tv/${item.id}/${selectedSeason}/${episode}?ui=${FEMBOX_API_TOKEN}`;
+      } else {
+        url = `${FEMBOX_BASE_URL}/hls/movie/${item.id}?ui=${FEMBOX_API_TOKEN}`;
+      }
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch streaming data: ${response.status}`);
+      }
+
+      const data: FemboxResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching streaming data:', error);
+      Alert.alert('Error', 'Failed to load streaming information. Please try again.');
+      return null;
+    } finally {
+      setLoadingStream(false);
     }
+  };
+
+  /**
+   * Transform Fembox subtitles to Player format
+   */
+  const transformSubtitles = (femboxSubs: FemboxSubtitle[]): PlayerSubtitle[] => {
+    return femboxSubs.map(sub => ({
+      title: sub.language,
+      language: sub.language.toLowerCase().replace(/[^a-z]/g, ''),
+      uri: sub.url,
+    }));
   };
 
   /**
@@ -84,55 +137,43 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   /**
    * Handle play button press
    */
-  const handlePlay = () => {
-    const videoUrl = getStreamingUrl();
+  const handlePlay = async () => {
+    const streamData = await fetchStreamingData();
+    
+    if (!streamData || !streamData.hls) {
+      return;
+    }
+
     const subtitle = isTVShow 
       ? `S${selectedSeason}:E${selectedEpisode}` 
       : year;
     
     navigation.navigate('Player', {
-      videoUrl,
+      videoUrl: streamData.hls,
       title: displayTitle,
       subtitle,
-      subtitles: [
-        {
-          title: 'Spanish',
-          language: 'en',
-          uri: 'https://images.febbox.com/subtilte/2026/01/29/697c1bf68ef78.srt',
-        },
-        {
-          title: 'French',
-          language: 'fr',
-          uri: 'https://images.febbox.com/subtilte/2026/01/29/697bc21f29da9.srt',
-        },
-      ],
+      subtitles: transformSubtitles(streamData.subtitles || []),
     });
   };
 
   /**
    * Handle episode selection and play
    */
-  const handleEpisodePress = (episodeNumber: number) => {
+  const handleEpisodePress = async (episodeNumber: number) => {
     setSelectedEpisode(episodeNumber);
-    const videoUrl = getStreamingUrl(episodeNumber);
+    const streamData = await fetchStreamingData(episodeNumber);
+    
+    if (!streamData || !streamData.hls) {
+      return;
+    }
+
     const subtitle = `S${selectedSeason}:E${episodeNumber}`;
     
     navigation.navigate('Player', {
-      videoUrl,
+      videoUrl: streamData.hls,
       title: displayTitle,
       subtitle,
-      subtitles: [
-        {
-          title: 'Spanish',
-          language: 'en',
-          uri: 'https://images.febbox.com/subtilte/2026/01/29/697c1bf68ef78.srt',
-        },
-        {
-          title: 'French',
-          language: 'fr',
-          uri: 'https://images.febbox.com/subtilte/2026/01/29/697bc21f29da9.srt',
-        },
-      ],
+      subtitles: transformSubtitles(streamData.subtitles || []),
     });
   };
 
@@ -178,6 +219,13 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
 
   return (
     <View style={styles.container}>
+      {loadingStream && (
+        <View style={styles.streamLoadingOverlay}>
+          <ActivityIndicator size="large" color={COLORS.text} />
+          <Text style={styles.streamLoadingText}>Loading stream...</Text>
+        </View>
+      )}
+      
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Hero Section with Backdrop */}
         <View>
@@ -291,5 +339,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
     fontWeight: '600',
+  },
+  streamLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  streamLoadingText: {
+    marginTop: SPACING.md,
+    fontSize: 16,
+    color: COLORS.text,
+    fontWeight: '500',
   },
 });

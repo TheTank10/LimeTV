@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Image,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEvent } from "expo";
@@ -60,7 +61,8 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [showSubMenu, setShowSubMenu] = useState(false);
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
-  
+  const isSeekingRef = useRef(false);
+
   const player = useVideoPlayer(videoUrl, (player) => {
     player.loop = false;
     player.timeUpdateEventInterval = 0.1;
@@ -68,9 +70,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   });
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      autoHideHomeIndicator: true,
-    });
+    navigation.setOptions({ autoHideHomeIndicator: true });
   }, [navigation]);
 
   useEffect(() => {
@@ -81,27 +81,25 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   }, []);
 
   const timeUpdate = useEvent(player, "timeUpdate");
-  const { isPlaying: playerIsPlaying } = useEvent(player, 'playingChange', { 
-    isPlaying: player.playing 
+  const { isPlaying: playerIsPlaying } = useEvent(player, 'playingChange', {
+    isPlaying: player.playing,
   });
 
   useEffect(() => {
-    if (timeUpdate?.currentTime !== undefined && !isSeeking) {
+    if (timeUpdate?.currentTime !== undefined && !isSeekingRef.current) {
       setCurrentTime(timeUpdate.currentTime);
     }
-  }, [timeUpdate, isSeeking]);
-
-  useEffect(() => {
-  if (timeUpdate?.currentTime !== undefined && !isSeeking) {
-      setCurrentTime(timeUpdate.currentTime);
-    }
-  }, [timeUpdate, isSeeking]);
+  }, [timeUpdate]);
 
   useEffect(() => {
     if (player.duration) {
       setDuration(player.duration);
     }
   }, [player.duration]);
+
+  useEffect(() => {
+    setIsPlaying(playerIsPlaying);
+  }, [playerIsPlaying]);
 
   useEffect(() => {
     (async () => {
@@ -143,27 +141,23 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [selectedSubIndex, subtitles]);
 
   useEffect(() => {
-    if (controlsVisible) {
+    if (controlsVisible && !isSeeking) {
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+      hideControlsTimer.current = setTimeout(() => setControlsVisible(false), 3000);
+    } else {
+      // Seeking in progress — cancel any pending hide so controls stay mounted.
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
+        hideControlsTimer.current = null;
       }
-      
-      hideControlsTimer.current = setTimeout(() => {
-        setControlsVisible(false);
-      }, 3000);
     }
-
     return () => {
-      if (hideControlsTimer.current) {
-        clearTimeout(hideControlsTimer.current);
-      }
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
-  }, [controlsVisible]);
+  }, [controlsVisible, isSeeking]);
 
   useEffect(() => {
-    const activeCue = subtitleCues.find(
-      (cue) => currentTime >= cue.start && currentTime <= cue.end
-    );
+    const activeCue = findActiveCue(subtitleCues, currentTime);
     setCurrentSubtitle(activeCue ? activeCue.text : "");
   }, [currentTime, subtitleCues]);
 
@@ -171,7 +165,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       const response = await fetch(uri);
       const text = await response.text();
-      const cues = parseSubtitles(text);
+      const cues = parseSRT(text);
       setSubtitleCues(cues);
     } catch (error) {
       console.error("Failed to load subtitles:", error);
@@ -181,14 +175,27 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleScreenTap = () => {
-    setControlsVisible(!controlsVisible);
+  const formatRemainingTime = (current: number, total: number) => {
+    const remaining = total - current;
+    const hours = Math.floor(remaining / 3600);
+    const mins = Math.floor((remaining % 3600) / 60);
+    const secs = Math.floor(remaining % 60);
+    if (hours > 0) {
+      return `-${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
+    return `-${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  const handleScreenTap = () => setControlsVisible((v) => !v);
 
   const togglePlayPause = () => {
     if (isPlaying) {
@@ -196,7 +203,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     } else {
       player.play();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const skipBackward = () => {
@@ -212,6 +218,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleSliderStart = () => {
+    isSeekingRef.current = true;
     setIsSeeking(true);
   };
 
@@ -221,13 +228,14 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleSliderComplete = (value: number) => {
     player.currentTime = value;
-    setCurrentTime(value);
-    setIsSeeking(false);
+    player.play();
+    setTimeout(() => {
+      isSeekingRef.current = false;
+      setIsSeeking(false);
+    }, 200);
   };
 
-  const handleExit = () => {
-    navigation.goBack();
-  };
+  const handleExit = () => navigation.goBack();
 
   const subtitleOptions = [
     { title: "Off", language: "off", uri: "" },
@@ -245,13 +253,8 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
         nativeControls={false}
       />
 
-      {/* Full screen tap area */}
-      <Pressable 
-        style={styles.tapArea} 
-        onPress={handleScreenTap}
-      />
+      <Pressable style={styles.tapArea} onPress={handleScreenTap} />
 
-      {/* Top controls */}
       {controlsVisible && (
         <>
           <TouchableOpacity style={styles.exitButton} onPress={handleExit}>
@@ -269,28 +272,33 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
         </>
       )}
 
-      {/* Center playback controls */}
       {controlsVisible && (
         <View style={styles.centerControls}>
           <TouchableOpacity style={styles.controlButton} onPress={skipBackward}>
-            <Text style={styles.controlButtonText}>‹‹</Text>
+            <Image
+              source={require('../../assets/rewind.png')}
+              style={styles.skipIcon}
+            />
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.playPauseButton} onPress={togglePlayPause}>
-            <Text style={styles.playPauseText}>{isPlaying ? "❚❚" : "▶"}</Text>
+            <Image
+              source={isPlaying ? require('../../assets/pause.png') : require('../../assets/play.png')}
+              style={styles.playPauseIcon}
+            />
           </TouchableOpacity>
-          
+
           <TouchableOpacity style={styles.controlButton} onPress={skipForward}>
-            <Text style={styles.controlButtonText}>››</Text>
+            <Image
+              source={require('../../assets/skip.png')}
+              style={styles.skipIcon}
+            />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Bottom controls bar */}
       {controlsVisible && (
         <View style={styles.controlsBar}>
-          <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-          
           <Slider
             style={styles.slider}
             value={currentTime}
@@ -298,24 +306,25 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
             maximumValue={duration || 1}
             minimumTrackTintColor="#fff"
             maximumTrackTintColor="rgba(255,255,255,0.3)"
-            thumbTintColor="#fff"
+            thumbTintColor="transparent"
             onSlidingStart={handleSliderStart}
             onValueChange={handleSliderChange}
             onSlidingComplete={handleSliderComplete}
+            tapToSeek={true}
           />
-          
-          <Text style={styles.timeText}>{formatTime(duration)}</Text>
+          <View style={styles.timeContainer}>
+            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={styles.timeText}>{formatRemainingTime(currentTime, duration)}</Text>
+          </View>
         </View>
       )}
 
-      {/* Subtitles */}
       {currentSubtitle !== "" && (
         <View style={styles.subtitleContainer}>
           <Text style={styles.subtitleText}>{currentSubtitle}</Text>
         </View>
       )}
 
-      {/* Subtitle menu */}
       {showSubMenu && (
         <View style={styles.menu}>
           <Text style={styles.menuTitle}>Subtitles</Text>
@@ -346,48 +355,100 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   );
 };
 
-const parseSubtitles = (content: string): SubtitleCue[] => {
+const findActiveCue = (cues: SubtitleCue[], time: number): SubtitleCue | undefined => {
+  let lo = 0;
+  let hi = cues.length - 1;
+
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const cue = cues[mid];
+
+    if (cue.end < time) {
+      lo = mid + 1;
+    } else if (cue.start > time) {
+      hi = mid - 1;
+    } else {
+      return cue;
+    }
+  }
+
+  return undefined;
+};
+
+const parseSRT = (content: string): SubtitleCue[] => {
   const cues: SubtitleCue[] = [];
-  const lines = content.trim().split("\n");
+
+  const lines = content
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .split("\n");
+
   let i = 0;
 
   while (i < lines.length) {
     const line = lines[i].trim();
-    
+
+    if (line === "" || /^\d+$/.test(line)) {
+      i++;
+      continue;
+    }
+
+    // Timestamp line: "00:00:23,291 --> 00:00:24,833"
     if (line.includes("-->")) {
       const [startStr, endStr] = line.split("-->").map((s) => s.trim());
-      const start = parseVTTTimestamp(startStr);
-      const end = parseVTTTimestamp(endStr);
-      
+      const start = parseSRTTimestamp(startStr);
+      const end = parseSRTTimestamp(endStr);
+
       i++;
-      let text = "";
-      
-      while (i < lines.length && lines[i].trim() !== "") {
-        text += (text ? "\n" : "") + lines[i].trim();
+
+      while (i < lines.length && lines[i].trim() === "") {
         i++;
       }
-      
-      cues.push({ start, end, text });
+
+      const textLines: string[] = [];
+
+      // Now collect actual text lines until we hit a blank
+      while (i < lines.length && lines[i].trim() !== "") {
+        textLines.push(lines[i].trim());
+        i++;
+      }
+
+      // Strip HTML tags some SRT files embed (<i>, <b>, <font color="...">, etc.)
+      const text = textLines.join("\n").replace(/<[^>]*>/g, "").trim();
+
+      if (text) {
+        cues.push({ start, end, text });
+      }
+
+      continue;
     }
-    
+
     i++;
   }
+
+  // Sort by start time so binary search works correctly even when the source
+  // file has out-of-order entries (common in auto-generated SRTs).
+  cues.sort((a, b) => a.start - b.start);
 
   return cues;
 };
 
-const parseVTTTimestamp = (timestamp: string): number => {
+// Parses "HH:MM:SS,mmm" — comma replaced with dot so parseFloat is correct.
+const parseSRTTimestamp = (timestamp: string): number => {
   try {
-    const parts = timestamp.split(":");
+    const normalized = timestamp.trim().replace(",", ".");
+    const parts = normalized.split(":");
+
     let hours = 0, minutes = 0, seconds = 0;
 
     if (parts.length === 3) {
-      hours = parseInt(parts[0]) || 0;
-      minutes = parseInt(parts[1]) || 0;
-      seconds = parseFloat(parts[2]) || 0;
+      hours   = parseInt(parts[0], 10) || 0;
+      minutes = parseInt(parts[1], 10) || 0;
+      seconds = parseFloat(parts[2])   || 0;
     } else if (parts.length === 2) {
-      minutes = parseInt(parts[0]) || 0;
-      seconds = parseFloat(parts[1]) || 0;
+      minutes = parseInt(parts[0], 10) || 0;
+      seconds = parseFloat(parts[1])   || 0;
     }
 
     return hours * 3600 + minutes * 60 + seconds;
@@ -404,8 +465,6 @@ const styles = StyleSheet.create({
   video: {
     flex: 1,
   },
-
-  // Tap area
   tapArea: {
     position: "absolute",
     top: 0,
@@ -414,32 +473,31 @@ const styles = StyleSheet.create({
     bottom: 80,
     zIndex: 1,
   },
-
-  // Top buttons
   exitButton: {
     position: "absolute",
     top: 16,
     left: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
   },
   exitText: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 22,
+    fontWeight: "300",
   },
   ccButton: {
     position: "absolute",
     top: 16,
     right: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.5)",
     zIndex: 10,
   },
   ccText: {
@@ -447,73 +505,71 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-
-  // Center controls
   centerControls: {
     position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: [{ translateX: -90 }, { translateY: -25 }],
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
+    justifyContent: "center",
+    gap: 30,
     zIndex: 10,
+    pointerEvents: 'box-none',
   },
   controlButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    width: 70,
+    height: 70,
     alignItems: "center",
     justifyContent: "center",
-  },
-  controlButtonText: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "600",
+    position: "relative",
   },
   playPauseButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    width: 80,
+    height: 80,
     alignItems: "center",
     justifyContent: "center",
   },
-  playPauseText: {
-    color: "#fff",
-    fontSize: 24,
+  playPauseIcon: {
+    width: 32,
+    height: 32,
+    tintColor: '#fff',
   },
-
-  // Bottom controls
+  skipIcon: {
+    width: 28,
+    height: 28,
+    tintColor: '#fff',
+  },
   controlsBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "rgba(0,0,0,0)",
     zIndex: 10,
-  },
-  timeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "500",
-    minWidth: 40,
   },
   slider: {
     flex: 1,
-    marginHorizontal: 12,
-    height: 40,
+    height: 10,
+    marginBottom: 8,
+    transform: [{ scaleY: 1.2 }],
   },
-
-  // Subtitles
+  timeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  timeText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "500",
+    fontVariant: ['tabular-nums'],
+  },
   subtitleContainer: {
     position: "absolute",
-    bottom: 70,
+    bottom: 30,
     width: "100%",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -528,8 +584,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     textAlign: "center",
   },
-
-  // Menu
   menu: {
     position: "absolute",
     top: 60,
