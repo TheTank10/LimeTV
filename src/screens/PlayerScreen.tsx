@@ -16,7 +16,6 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
-import { useHomeIndicatorAutoHide } from "../hooks/useHomeIndicatorAutoHide";
 
 interface SubtitleOption {
   title: string;
@@ -60,7 +59,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [showSubMenu, setShowSubMenu] = useState(false);
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
-  const { resetTimer: resetHomeIndicatorTimer } = useHomeIndicatorAutoHide(3000);
   
   const player = useVideoPlayer(videoUrl, (player) => {
     player.loop = false;
@@ -132,7 +130,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   useEffect(() => {
     if (controlsVisible) {
-      resetHomeIndicatorTimer();
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
       }

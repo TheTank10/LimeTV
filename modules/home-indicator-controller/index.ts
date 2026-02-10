@@ -1,1 +1,0 @@
-export { setAutoHidden } from './src/HomeIndicatorControllerModule';
