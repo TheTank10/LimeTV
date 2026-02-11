@@ -53,31 +53,28 @@ async function searchSubtitles(
   
   // Clean IMDB ID (remove 'tt' prefix if present)
   const cleanImdbId = imdbId.startsWith('tt') ? imdbId.slice(2) : imdbId;
+  
+  // IMPORTANT: Order matters for OpenSubtitles API
+  // Correct order: episode/imdbid/season/sublanguageid
+  if (episode !== undefined) {
+    parts.push(`episode-${episode}`);
+  }
+  
   parts.push(`imdbid-${cleanImdbId}`);
-  parts.push(`sublanguageid-${language}`);
   
   if (season !== undefined) {
     parts.push(`season-${season}`);
   }
-  if (episode !== undefined) {
-    parts.push(`episode-${episode}`);
-  }
+  
+  parts.push(`sublanguageid-${language}`);
   
   const endpoint = `/search/${parts.join('/')}`;
   
   try {
     const response = await subtitlesClient.get(endpoint);
-    
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error('Subtitle search failed:');
-    if (axios.isAxiosError(error)) {
-      console.error('   Status:', error.response?.status);
-      console.error('   Code:', error.code);
-      console.error('   Message:', error.message);
-    } else {
-      console.error('   Error:', error);
-    }
+    console.error('Subtitle search failed:', error instanceof Error ? error.message : 'Unknown error');
     return [];
   }
 }
@@ -102,11 +99,6 @@ async function downloadAndDecompressSubtitle(downloadUrl: string): Promise<strin
     
     return srtContent;
   } catch (error) {
-    console.error('Download/decompress failed:');
-    if (axios.isAxiosError(error)) {
-      console.error('   Status:', error.response?.status);
-      console.error('   Code:', error.code);
-    }
     throw new Error(`Failed to download subtitle: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -118,8 +110,6 @@ async function downloadAndDecompressSubtitle(downloadUrl: string): Promise<strin
 export async function getSubtitles(params: SubtitleSearchParams): Promise<SubtitleResult> {
   try {
     const { tmdbId, language, mediaType, season, episode } = params;
-    
-    console.log('🎬 Getting subtitles for TMDB ID:', tmdbId);
     
     const imdbId = await getImdbId(tmdbId, mediaType);
     
@@ -142,7 +132,6 @@ export async function getSubtitles(params: SubtitleSearchParams): Promise<Subtit
     const bestSubtitle = results[0];
     
     if (!bestSubtitle.SubDownloadLink) {
-      console.error('❌ No download link');
       return {
         success: false,
         error: 'No download link available',
@@ -156,7 +145,6 @@ export async function getSubtitles(params: SubtitleSearchParams): Promise<Subtit
       srtContent,
     };
   } catch (error) {
-    console.error('Get subtitles error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
