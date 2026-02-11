@@ -4,7 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../constants';
 import { DetailScreenProps, TVDetails } from '../types';
-import { useContentDetails, useSeasonData } from '../hooks';
+import { useContentDetails, useSeasonData, useSubtitlePreferences } from '../hooks';
+import { getFebBoxStream } from '../services/febbox';
 import {
   DetailHeader,
   DetailHeroBackdrop,
@@ -26,27 +27,6 @@ import {
   getSimilarContent,
 } from '../utils/detailHelpers';
 
-const FEMBOX_API_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NzAzMTcwMTUsIm5iZiI6MTc3MDMxNzAxNSwiZXhwIjoxODAxNDIxMDM1LCJkYXRhIjp7InVpZCI6MTM5MzkyMSwidG9rZW4iOiJlYWI1ODBiZTA1MTg5NWExZWZhMWYxNDkwMGIwOTIwNSJ9fQ.n_F2wiMBUoKymIHCpMips1sPpbQi15Qsh5fsm4KT0Ok';
-const FEMBOX_BASE_URL = 'https://fembox.aether.mom';
-
-interface FemboxSubtitle {
-  language: string;
-  url: string;
-  name: string;
-  upload_date: string;
-}
-
-interface FemboxResponse {
-  hls: string;
-  subtitles: FemboxSubtitle[];
-}
-
-interface PlayerSubtitle {
-  title: string;
-  language: string;
-  uri: string;
-}
-
 /**
  * Detail screen for movies and TV shows
  * Displays comprehensive information including cast, episodes, trailers, and similar content
@@ -64,6 +44,9 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
 
   // Load content details
   const { details, loading, error, loadDetails } = useContentDetails(item.id, mediaType);
+
+  // Load user subtitle preferences
+  const { languages: subtitleLanguages } = useSubtitlePreferences();
 
   // Load season data for TV shows
   const {
@@ -85,28 +68,22 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   const topCast = details?.credits.cast.slice(0, 15) || [];
 
   /**
-   * Fetch streaming data from Fembox API
+   * Fetch streaming data using FebBox service
    */
-  const fetchStreamingData = async (episodeNumber?: number): Promise<FemboxResponse | null> => {
+  const fetchStreamingData = async (episodeNumber?: number) => {
     try {
       setLoadingStream(true);
-      let url: string;
 
-      if (isTVShow) {
-        const episode = episodeNumber || selectedEpisode;
-        url = `${FEMBOX_BASE_URL}/hls/tv/${item.id}/${selectedSeason}/${episode}?ui=${FEMBOX_API_TOKEN}`;
-      } else {
-        url = `${FEMBOX_BASE_URL}/hls/movie/${item.id}?ui=${FEMBOX_API_TOKEN}`;
+      const result = isTVShow
+        ? await getFebBoxStream(item.id, 'tv', selectedSeason, episodeNumber || selectedEpisode)
+        : await getFebBoxStream(item.id, 'movie');
+
+      if (!result.success || !result.streamUrl) {
+        Alert.alert('Error', result.error || 'Failed to load stream. Please try again.');
+        return null;
       }
 
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch streaming data: ${response.status}`);
-      }
-
-      const data: FemboxResponse = await response.json();
-      return data;
+      return result.streamUrl;
     } catch (error) {
       console.error('Error fetching streaming data:', error);
       Alert.alert('Error', 'Failed to load streaming information. Please try again.');
@@ -114,17 +91,6 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     } finally {
       setLoadingStream(false);
     }
-  };
-
-  /**
-   * Transform Fembox subtitles to Player format
-   */
-  const transformSubtitles = (femboxSubs: FemboxSubtitle[]): PlayerSubtitle[] => {
-    return femboxSubs.map(sub => ({
-      title: sub.language,
-      language: sub.language.toLowerCase().replace(/[^a-z]/g, ''),
-      uri: sub.url,
-    }));
   };
 
   /**
@@ -138,9 +104,9 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
    * Handle play button press
    */
   const handlePlay = async () => {
-    const streamData = await fetchStreamingData();
+    const streamUrl = await fetchStreamingData();
     
-    if (!streamData || !streamData.hls) {
+    if (!streamUrl) {
       return;
     }
 
@@ -149,10 +115,18 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       : year;
     
     navigation.navigate('Player', {
-      videoUrl: streamData.hls,
+      videoUrl: streamUrl,
       title: displayTitle,
       subtitle,
-      subtitles: transformSubtitles(streamData.subtitles || []),
+      subtitles: subtitleLanguages.map(lang => ({
+        title: lang.name,
+        language: lang.code,
+        uri: '',
+      })),
+      tmdbId: item.id,
+      mediaType,
+      season: isTVShow ? selectedSeason : undefined,
+      episode: isTVShow ? selectedEpisode : undefined,
     });
   };
 
@@ -161,19 +135,27 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
    */
   const handleEpisodePress = async (episodeNumber: number) => {
     setSelectedEpisode(episodeNumber);
-    const streamData = await fetchStreamingData(episodeNumber);
+    const streamUrl = await fetchStreamingData(episodeNumber);
     
-    if (!streamData || !streamData.hls) {
+    if (!streamUrl) {
       return;
     }
 
     const subtitle = `S${selectedSeason}:E${episodeNumber}`;
     
     navigation.navigate('Player', {
-      videoUrl: streamData.hls,
+      videoUrl: streamUrl,
       title: displayTitle,
       subtitle,
-      subtitles: transformSubtitles(streamData.subtitles || []),
+      subtitles: subtitleLanguages.map(lang => ({
+        title: lang.name,
+        language: lang.code,
+        uri: '', 
+      })),
+      tmdbId: item.id,
+      mediaType,
+      season: selectedSeason,
+      episode: episodeNumber,
     });
   };
 

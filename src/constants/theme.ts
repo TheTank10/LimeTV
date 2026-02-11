@@ -12,6 +12,7 @@ export const COLORS = {
   shimmer: 'rgba(255, 255, 255, 0.08)',
   buttonLight: 'rgba(255, 255, 255, 0.9)',
   buttonDark: '#000',
+  primary: '#FF6B6B',
 };
 
 // Spacing system

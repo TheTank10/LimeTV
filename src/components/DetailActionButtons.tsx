@@ -56,6 +56,7 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
       }
 
       await AsyncStorage.setItem(MY_LIST_KEY, JSON.stringify(myList));
+      await AsyncStorage.setItem('@mylist_updated', Date.now().toString());
     } catch (error) {
       console.error('Error updating list:', error);
       Alert.alert('Error', 'Could not update your list');

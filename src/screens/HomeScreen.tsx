@@ -1,13 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { View, ScrollView, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native';
 import { MediaType, RootStackParamList } from '../types';
 import { useContentLoader, useSearch, useScrollAnimation } from '../hooks';
 import { Header, HeroSection, CategoryRow, PosterCard, ScrollToTopButton  } from '../components';
 import { COLORS, SPACING } from '../constants';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -22,13 +24,26 @@ export const HomeScreen: React.FC = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Load content based on selected tab
-  const { heroItem, categories, heroLoading } = useContentLoader(selectedTab);
+  const { heroItem, categories, heroLoading, reload } = useContentLoader(selectedTab);
 
   // Search functionality
   const { query, results, isSearching, handleSearch, clearSearch } = useSearch();
 
   // Scroll animations
   const { animations, handleScroll, resetAnimations } = useScrollAnimation();
+  const lastUpdateRef = useRef<string>('0');
+
+  // Update if "My List" has changed
+  useFocusEffect(
+    React.useCallback(() => {
+      AsyncStorage.getItem('@mylist_updated').then((timestamp) => {
+        if (timestamp && timestamp !== lastUpdateRef.current) {
+          lastUpdateRef.current = timestamp;
+          reload();
+        }
+      });
+    }, [])
+  );
 
   /**
    * Handle tab change
@@ -100,7 +115,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <LinearGradient colors={COLORS.backgroundGradient} style={styles.gradient}>
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea}  >
           {/* Header */}
           <Header
             selectedTab={selectedTab}
@@ -110,6 +125,7 @@ export const HomeScreen: React.FC = () => {
             onSearchClear={handleClearSearch}
             isSearching={isSearching}
             animations={animations}
+            onSettingsPress={() => navigation.navigate('Settings')}
           />
 
           {/* Content */}
@@ -154,7 +170,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 180, // Space for sticky header
+    paddingTop: 160, 
     paddingBottom: SPACING.xl,
   },
   categoryContainer: {

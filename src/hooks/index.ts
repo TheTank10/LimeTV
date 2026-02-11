@@ -10,3 +10,8 @@ export { useSearch } from './useSearch';
 // Detail Screen Hooks
 export { useContentDetails } from './useContentDetails';
 export { useSeasonData } from './useSeasonData';
+export * from './useSubtitlePreferences';
+
+// Settings Screen Hooks
+export * from './useFebboxTokens';
+export * from './useSubtitleLanguages';

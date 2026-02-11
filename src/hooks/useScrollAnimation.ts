@@ -17,6 +17,7 @@ export const useScrollAnimation = () => {
   const tabsOpacity = useRef(new Animated.Value(1)).current;
   const tabsScale = useRef(new Animated.Value(1)).current;
   const tabsTranslate = useRef(new Animated.Value(0)).current;
+  const headerOpacity = useRef(new Animated.Value(1)).current; // NEW - for blur backdrop
 
   // Tracking state
   const lastScrollY = useRef(0);
@@ -62,6 +63,11 @@ export const useScrollAnimation = () => {
           duration: 200,
           useNativeDriver: true,
         }),
+        Animated.timing(headerOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
       ]).start();
     } else if (currentScrollY <= 10 && isSearchBarHidden.current) {
       // AT THE TOP - show search bar
@@ -87,11 +93,11 @@ export const useScrollAnimation = () => {
           duration: 200,
           useNativeDriver: true,
         }),
-        //Animated.timing(tabsOpacity, {
-        //  toValue: 1,
-        //  duration: 200,
-        //  useNativeDriver: true,
-        //}),
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
       ]).start();
     }
 
@@ -124,11 +130,11 @@ export const useScrollAnimation = () => {
         duration: 200,
         useNativeDriver: true,
       }),
-      //Animated.timing(tabsOpacity, {
-      //  toValue: 1,
-      //  duration: 200,
-      //  useNativeDriver: true,
-      //}),
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
     ]).start();
   };
 
@@ -140,6 +146,7 @@ export const useScrollAnimation = () => {
       tabsOpacity,
       tabsScale,
       tabsTranslate,
+      headerOpacity,
     },
     handleScroll,
     resetAnimations,

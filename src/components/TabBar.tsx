@@ -1,22 +1,26 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, Animated, StyleSheet } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { MediaType } from '../types';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants';
+import { COLORS, SPACING, FONT_SIZES } from '../constants';
 
 interface Props {
   selectedTab: MediaType;
   onTabChange: (tab: MediaType) => void;
+  onSettingsPress?: () => void;
   opacity?: Animated.Value;
   scale?: Animated.Value;
   translateY?: Animated.Value;
 }
 
-/**
- * Tab bar for switching between All, Movies, and TV Shows
- * Uses blur effect for glassmorphism design
- */
-export const TabBar: React.FC<Props> = ({ selectedTab, onTabChange, opacity, scale, translateY }) => {
+export const TabBar: React.FC<Props> = ({ 
+  selectedTab, 
+  onTabChange, 
+  onSettingsPress,
+  opacity, 
+  scale, 
+  translateY 
+}) => {
   const tabs: { key: MediaType; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'movie', label: 'Movies' },
@@ -32,22 +36,32 @@ export const TabBar: React.FC<Props> = ({ selectedTab, onTabChange, opacity, sca
   };
 
   return (
-    <Animated.View style={animatedStyle}>
-      <BlurView intensity={60} tint="dark" style={styles.container}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, selectedTab === tab.key && styles.tabActive]}
-            onPress={() => onTabChange(tab.key)}
+    <Animated.View style={[styles.container, animatedStyle]}>
+      {tabs.map((tab) => (
+        <TouchableOpacity
+          key={tab.key}
+          style={styles.tab}
+          onPress={() => onTabChange(tab.key)}
+        >
+          <Text
+            style={[styles.tabText, selectedTab === tab.key && styles.tabTextActive]}
           >
-            <Text
-              style={[styles.tabText, selectedTab === tab.key && styles.tabTextActive]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </BlurView>
+            {tab.label}
+          </Text>
+          {selectedTab === tab.key && <View style={styles.indicator} />}
+        </TouchableOpacity>
+      ))}
+      
+      {/* Settings Tab */}
+      <TouchableOpacity
+        style={styles.tab}
+        onPress={onSettingsPress}
+      >
+        <View style={styles.settingsTab}>
+          <Ionicons name="settings-outline" size={16} color={COLORS.textDark} />
+          <Text style={styles.tabText}>Settings</Text>
+        </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -55,27 +69,34 @@ export const TabBar: React.FC<Props> = ({ selectedTab, onTabChange, opacity, sca
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    borderRadius: BORDER_RADIUS.lg,
-    overflow: 'hidden',
-    backgroundColor: COLORS.overlay,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    zIndex: 1,
+    gap: 4,
   },
   tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: COLORS.overlayStrong,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    position: 'relative',
   },
   tabText: {
-    color: COLORS.textMuted,
-    fontSize: FONT_SIZES.md,
+    color: COLORS.textDark,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
   tabTextActive: {
     color: COLORS.text,
+  },
+  indicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 16,
+    right: 16,
+    height: 2,
+    backgroundColor: COLORS.text,
+    borderRadius: 2,
+  },
+  settingsTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 });

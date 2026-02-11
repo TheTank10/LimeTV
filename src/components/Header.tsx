@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { MediaType } from '../types';
 import { TabBar } from './TabBar';
 import { SearchBar } from './SearchBar';
-import { COLORS, SPACING, FONT_SIZES, SHADOWS } from '../constants';
+import { COLORS, SPACING, FONT_SIZES } from '../constants';
 
 interface Props {
   selectedTab: MediaType;
@@ -12,6 +13,7 @@ interface Props {
   onSearchChange: (text: string) => void;
   onSearchClear: () => void;
   isSearching: boolean;
+  onSettingsPress?: () => void;
   animations?: {
     searchBarScale: Animated.Value;
     searchBarTranslate: Animated.Value;
@@ -19,13 +21,10 @@ interface Props {
     tabsOpacity: Animated.Value;
     tabsScale: Animated.Value;
     tabsTranslate: Animated.Value;
+    headerOpacity: Animated.Value;
   };
 }
 
-/**
- * App header with logo, tabs, and search bar
- * Supports scroll animations for hiding/showing elements
- */
 export const Header: React.FC<Props> = ({
   selectedTab,
   onTabChange,
@@ -33,67 +32,73 @@ export const Header: React.FC<Props> = ({
   onSearchChange,
   onSearchClear,
   isSearching,
+  onSettingsPress,
   animations,
 }) => {
   return (
-    <View style={styles.container}>
-      {/* Logo */}
-      <Animated.View style={{ opacity: animations?.logoOpacity, marginBottom: 20 }}>
-        <Text style={styles.logo}>Lime TV</Text>
-      </Animated.View>
+    <Animated.View style={[styles.wrapper, { opacity: animations?.headerOpacity || 1 }]}>
+      <BlurView intensity={95} tint="dark" style={styles.blurContainer}>
+        <View style={styles.container}>
+        {/* Logo */}
+        <Animated.View style={{ opacity: animations?.logoOpacity, flexDirection: 'row' }}>
+          <Text style={[styles.logo, { color: 'rgba(201, 255, 0, 0.7)' }]}>LIME</Text>
+          <Text style={[styles.logo, { color: 'rgba(255, 255, 255, 0.7)' }]}> TV</Text>
+        </Animated.View>
 
-      {/* Tabs (hidden when searching) */}
-      {!isSearching && (
-        <Animated.View
-          style={[
-            styles.tabWrapper,
-            {
+        {/* Tabs (hidden when searching) */}
+        {!isSearching && (
+          <Animated.View
+            style={{
               transform: [
                 { scale: animations?.tabsScale || 1 }
               ],
-            },
-          ]}
-        >
-          <TabBar
-            selectedTab={selectedTab}
-            onTabChange={onTabChange}
-            opacity={animations?.tabsOpacity}
-          />
-        </Animated.View>
-      )}
+              marginTop: 16,
+            }}
+          >
+            <TabBar
+              selectedTab={selectedTab}
+              onTabChange={onTabChange}
+              onSettingsPress={onSettingsPress}
+              opacity={animations?.tabsOpacity}
+            />
+          </Animated.View>
+        )}
 
-      {/* Search Bar */}
-      <SearchBar
-        value={searchQuery}
-        onChangeText={onSearchChange}
-        onClear={onSearchClear}
-        scale={animations?.searchBarScale}
-        translateY={animations?.searchBarTranslate}
-      />
-    </View>
+        {/* Search Bar */}
+        <SearchBar
+          value={searchQuery}
+          onChangeText={onSearchChange}
+          onClear={onSearchClear}
+          scale={animations?.searchBarScale}
+          translateY={animations?.searchBarTranslate}
+        />
+      </View>
+    </BlurView>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: 50,
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: 15,
+  wrapper: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 100,
   },
+  blurContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  container: {
+    paddingTop: 45,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: 8,
+  },
   logo: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     color: COLORS.text,
     letterSpacing: 2,
-    ...SHADOWS.textGlow,
-    zIndex: 1,
-  },
-  tabWrapper: {
-    marginBottom: 5,
   },
 });

@@ -1,8 +1,11 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TMDB_BASE_URL, ITEMS_PER_CATEGORY, TMDB_API_KEY } from '../constants/config';
 import { getEndpoints } from '../constants/endpoints';
 import { Movie, Category, MediaType } from '../types';
 import { ContentDetails, MovieDetails, TVDetails, SeasonDetails } from '../types';
+
+const MY_LIST_KEY = '@limetv_my_list';
 
 // Create axios instance with Bearer token authentication
 const tmdbClient = axios.create({
@@ -43,6 +46,51 @@ const findBestHeroItem = (items: any[]): Movie | null => {
 };
 
 /**
+ * Fetch My List items from AsyncStorage
+ */
+const fetchMyList = async (): Promise<Movie[]> => {
+  try {
+    const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
+    if (!myListJson) return [];
+    
+    const savedIds: number[] = JSON.parse(myListJson);
+    if (savedIds.length === 0) return [];
+    
+    // Fetch details for each saved item
+    const itemPromises = savedIds.map(async (id) => {
+      try {
+        // Try movie first
+        const movieRes = await tmdbClient.get(`/movie/${id}`);
+        if (movieRes.data) {
+          return { ...movieRes.data, media_type: 'movie' };
+        }
+      } catch {
+        // If movie fails, try TV
+        try {
+          const tvRes = await tmdbClient.get(`/tv/${id}`);
+          if (tvRes.data) {
+            return { 
+              ...tvRes.data, 
+              title: tvRes.data.name,
+              media_type: 'tv' 
+            };
+          }
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    });
+    
+    const items = await Promise.all(itemPromises);
+    return items.filter((item): item is Movie => item !== null);
+  } catch (error) {
+    console.error('Error loading My List:', error);
+    return [];
+  }
+};
+
+/**
  * Fetch all content for a given media type (all, movie, tv)
  * Returns hero item and categories in parallel for best performance
  */
@@ -50,8 +98,9 @@ export const fetchContent = async (type: MediaType) => {
   const config = getEndpoints(type);
 
   try {
-    const [heroResponse, ...categoryResponses] = await Promise.all([
+    const [heroResponse, myListItems, ...categoryResponses] = await Promise.all([
       tmdbClient.get(config.hero),
+      fetchMyList(),
       ...config.priority.map(async (endpoint, index) => {
         const response = await tmdbClient.get(endpoint.url);
         return response;
@@ -66,6 +115,22 @@ export const fetchContent = async (type: MediaType) => {
       loading: false,
     }));
 
+    // Add My List category if items exist AND we're on 'all' tab (insert after first category)
+    const categoriesWithMyList: Category[] = [];
+    if (priorityCategories.length > 0) {
+      categoriesWithMyList.push(priorityCategories[0]); // Trending
+    }
+    
+    if (myListItems.length > 0 && type === 'all') {
+      categoriesWithMyList.push({
+        title: 'My List',
+        items: myListItems,
+        loading: false,
+      });
+    }
+    
+    categoriesWithMyList.push(...priorityCategories.slice(1)); // Rest of categories
+
     // Add lazy category placeholders
     const lazyPlaceholders: Category[] = config.lazy.map((endpoint) => ({
       title: endpoint.title,
@@ -75,7 +140,7 @@ export const fetchContent = async (type: MediaType) => {
 
     return {
       heroItem,
-      categories: [...priorityCategories, ...lazyPlaceholders],
+      categories: [...categoriesWithMyList, ...lazyPlaceholders],
     };
   } catch (error: unknown) {
     console.error('❌ ERROR LOADING CONTENT:');
@@ -201,5 +266,22 @@ export const fetchSeasonDetails = async (
       console.error('  Response data:', JSON.stringify(error.response?.data, null, 2));
     }
     throw error;
+  }
+};
+
+export const getImdbId = async (
+  id: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | null> => {
+  try {
+    const response = await tmdbClient.get(`/${mediaType}/${id}/external_ids`);
+    return response.data.imdb_id || null;
+  } catch (error: unknown) {
+    console.error('ERROR GETTING IMDB ID:');
+    if (axios.isAxiosError(error)) {
+      console.error('  Status:', error.response?.status);
+      console.error('  Response data:', JSON.stringify(error.response?.data, null, 2));
+    }
+    return null;
   }
 };

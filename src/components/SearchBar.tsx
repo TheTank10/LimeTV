@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, Text, Animated, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants';
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
 
 /**
  * Search bar with blur background and clear button
- * Supports animations for hiding/showing
+ * Clean minimal design
  */
 export const SearchBar: React.FC<Props> = ({
   value,
@@ -30,59 +31,54 @@ export const SearchBar: React.FC<Props> = ({
 
   return (
     <Animated.View style={[styles.container, animatedStyle]}>
-      <BlurView intensity={80} tint="dark" style={styles.blur}>
-        <TextInput
-          style={styles.input}
-          placeholder="Search..."
-          placeholderTextColor={COLORS.textDark}
-          value={value}
-          onChangeText={onChangeText}
-        />
+      <BlurView intensity={90} tint="dark" style={styles.blur}>
+        <View style={styles.searchContent}>
+          <Ionicons name="search" size={18} color={COLORS.textDark} style={styles.searchIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Search movies & shows..."
+            placeholderTextColor={COLORS.textDark}
+            value={value}
+            onChangeText={onChangeText}
+            returnKeyType="search"
+          />
+          {value.length > 0 && (
+            <TouchableOpacity style={styles.clearButton} onPress={onClear}>
+              <Ionicons name="close-circle" size={18} color={COLORS.textDark} />
+            </TouchableOpacity>
+          )}
+        </View>
       </BlurView>
-      {value.length > 0 && (
-        <TouchableOpacity style={styles.clearButton} onPress={onClear}>
-          <Text style={styles.clearButtonText}>✕</Text>
-        </TouchableOpacity>
-      )}
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: SPACING.sm,
-    marginBottom: 0,
-    zIndex: 1,
-    overflow: 'hidden',
+    marginTop: SPACING.md,
   },
   blur: {
     borderRadius: BORDER_RADIUS.md,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  searchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  searchIcon: {
+    marginRight: 10,
   },
   input: {
-    backgroundColor: 'transparent',
-    borderRadius: BORDER_RADIUS.md,
-    padding: 12,
-    paddingRight: 45,
+    flex: 1,
     color: COLORS.text,
     fontSize: FONT_SIZES.md,
+    fontWeight: '400',
   },
   clearButton: {
-    position: 'absolute',
-    right: 10,
-    top: 12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.overlayStrong,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  clearButtonText: {
-    color: COLORS.text,
-    fontSize: FONT_SIZES.md,
-    fontWeight: 'bold',
+    padding: 4,
   },
 });

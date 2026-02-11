@@ -1,4 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { TokenValidationResult } from '../services/febbox';
 
 // Movie and TV show data structures
 export interface Movie {
@@ -37,7 +38,12 @@ export type RootStackParamList = {
       language: string;
       uri: string;
     }[];
+    tmdbId?: number;
+    mediaType?: 'movie' | 'tv';
+    season?: number;
+    episode?: number;
   };
+  Settings: undefined
 };
 
 export type DetailScreenProps = NativeStackScreenProps<RootStackParamList, 'Detail'>;
@@ -185,4 +191,17 @@ export interface ContentDetails {
   recommendations: {
     results: any[];
   };
+}
+
+// SETTINGS
+// Febbox token state
+export interface TokenState {
+  value: string;
+  status: 'idle' | 'validating' | 'valid' | 'invalid';
+  data?: TokenValidationResult['data'];
+}
+
+export interface SubtitleLanguage {
+  code: string; // e.g., 'en', 'es', 'fr'
+  name: string; // e.g., 'English', 'Spanish', 'French'
 }

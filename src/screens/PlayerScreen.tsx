@@ -9,6 +9,7 @@ import {
   Pressable,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEvent } from "expo";
@@ -18,6 +19,7 @@ import * as NavigationBar from "expo-navigation-bar";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Audio } from 'expo-av';
+import { getSubtitles } from '../services/opensubtitles';
 
 interface SubtitleOption {
   title: string;
@@ -35,7 +37,13 @@ type RootStackParamList = {
   Player: {
     videoUrl: string;
     title?: string;
+    subtitle?: string;
     subtitles?: SubtitleOption[];
+    // New params for OpenSubtitles
+    tmdbId?: number;
+    mediaType?: 'movie' | 'tv';
+    season?: number;
+    episode?: number;
   };
 };
 
@@ -48,7 +56,14 @@ type Props = {
 };
 
 export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { videoUrl, subtitles = [] } = route.params;
+  const { 
+    videoUrl, 
+    subtitles = [], 
+    tmdbId, 
+    mediaType, 
+    season, 
+    episode 
+  } = route.params;
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -59,6 +74,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [currentSubtitle, setCurrentSubtitle] = useState("");
   const [selectedSubIndex, setSelectedSubIndex] = useState<number>(-1);
   const [showSubMenu, setShowSubMenu] = useState(false);
+  const [loadingSubtitle, setLoadingSubtitle] = useState(false);
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
   const isSeekingRef = useRef(false);
@@ -132,20 +148,10 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [navigation]);
 
   useEffect(() => {
-    if (selectedSubIndex >= 0 && subtitles[selectedSubIndex]) {
-      loadSubtitleFile(subtitles[selectedSubIndex].uri);
-    } else {
-      setSubtitleCues([]);
-      setCurrentSubtitle("");
-    }
-  }, [selectedSubIndex, subtitles]);
-
-  useEffect(() => {
     if (controlsVisible && !isSeeking) {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
       hideControlsTimer.current = setTimeout(() => setControlsVisible(false), 3000);
     } else {
-      // Seeking in progress — cancel any pending hide so controls stay mounted.
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
         hideControlsTimer.current = null;
@@ -161,10 +167,77 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     setCurrentSubtitle(activeCue ? activeCue.text : "");
   }, [currentTime, subtitleCues]);
 
+  /**
+   * Load subtitle - handles both URI-based and OpenSubtitles fetching
+   */
+  const loadSubtitle = async (subtitle: SubtitleOption, index: number) => {
+    setSelectedSubIndex(index);
+    setShowSubMenu(false);
+    setControlsVisible(true);
+    
+    // If it has a URI, load it directly (legacy support)
+    if (subtitle.uri) {
+      loadSubtitleFile(subtitle.uri);
+      return;
+    }
+    
+    // Otherwise, fetch from OpenSubtitles
+    if (!tmdbId || !mediaType) {
+      console.error('Missing TMDB metadata for subtitle fetching');
+      return;
+    }
+    
+    setLoadingSubtitle(true);
+    
+    try {
+      const result = await getSubtitles({
+        tmdbId,
+        language: subtitle.language,
+        mediaType,
+        season,
+        episode,
+      });
+      
+      if (result.success && result.srtContent) {
+        const cues = parseSRT(result.srtContent);
+        setSubtitleCues(cues);
+      } else {
+        console.error('Failed to fetch subtitles:', result.error);
+        setSubtitleCues([]);
+        setCurrentSubtitle("");
+      }
+    } catch (error) {
+      console.error('Error loading subtitles:', error);
+      setSubtitleCues([]);
+      setCurrentSubtitle("");
+    } finally {
+      setLoadingSubtitle(false);
+    }
+  };
+
   const loadSubtitleFile = async (uri: string) => {
     try {
       const response = await fetch(uri);
-      const text = await response.text();
+      
+      // Check if it's gzipped
+      const contentType = response.headers.get('content-type') || '';
+      const isGzipped = uri.endsWith('.gz') || contentType.includes('gzip');
+      
+      let text: string;
+      
+      if (isGzipped) {
+        // This shouldn't happen since we're using OpenSubtitles service
+        // but keeping for backward compatibility
+        const arrayBuffer = await response.arrayBuffer();
+        const pako = require('pako');
+        const compressed = new Uint8Array(arrayBuffer);
+        const decompressed = pako.ungzip(compressed);
+        const textDecoder = new TextDecoder('utf-8');
+        text = textDecoder.decode(decompressed);
+      } else {
+        text = await response.text();
+      }
+      
       const cues = parseSRT(text);
       setSubtitleCues(cues);
     } catch (error) {
@@ -325,6 +398,13 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       )}
 
+      {loadingSubtitle && (
+        <View style={styles.loadingSubtitleOverlay}>
+          <ActivityIndicator size="small" color="#fff" />
+          <Text style={styles.loadingSubtitleText}>Loading subtitles...</Text>
+        </View>
+      )}
+
       {showSubMenu && (
         <View style={styles.menu}>
           <Text style={styles.menuTitle}>Subtitles</Text>
@@ -337,9 +417,17 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
                   selectedSubIndex === index - 1 && styles.menuItemActive,
                 ]}
                 onPress={() => {
-                  setSelectedSubIndex(index - 1);
-                  setShowSubMenu(false);
-                  setControlsVisible(true);
+                  if (index === 0) {
+                    // "Off" option
+                    setSelectedSubIndex(-1);
+                    setSubtitleCues([]);
+                    setCurrentSubtitle("");
+                    setShowSubMenu(false);
+                    setControlsVisible(true);
+                  } else {
+                    // Language option
+                    loadSubtitle(item, index - 1);
+                  }
                 }}
               >
                 <Text style={styles.menuItemText}>{item.title}</Text>
@@ -394,7 +482,6 @@ const parseSRT = (content: string): SubtitleCue[] => {
       continue;
     }
 
-    // Timestamp line: "00:00:23,291 --> 00:00:24,833"
     if (line.includes("-->")) {
       const [startStr, endStr] = line.split("-->").map((s) => s.trim());
       const start = parseSRTTimestamp(startStr);
@@ -408,13 +495,11 @@ const parseSRT = (content: string): SubtitleCue[] => {
 
       const textLines: string[] = [];
 
-      // Now collect actual text lines until we hit a blank
       while (i < lines.length && lines[i].trim() !== "") {
         textLines.push(lines[i].trim());
         i++;
       }
 
-      // Strip HTML tags some SRT files embed (<i>, <b>, <font color="...">, etc.)
       const text = textLines.join("\n").replace(/<[^>]*>/g, "").trim();
 
       if (text) {
@@ -427,14 +512,11 @@ const parseSRT = (content: string): SubtitleCue[] => {
     i++;
   }
 
-  // Sort by start time so binary search works correctly even when the source
-  // file has out-of-order entries (common in auto-generated SRTs).
   cues.sort((a, b) => a.start - b.start);
 
   return cues;
 };
 
-// Parses "HH:MM:SS,mmm" — comma replaced with dot so parseFloat is correct.
 const parseSRTTimestamp = (timestamp: string): number => {
   try {
     const normalized = timestamp.trim().replace(",", ".");
@@ -583,6 +665,24 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 4,
     textAlign: "center",
+  },
+  loadingSubtitleOverlay: {
+    position: "absolute",
+    bottom: 120,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.75)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 15,
+    gap: 8,
+  },
+  loadingSubtitleText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "500",
   },
   menu: {
     position: "absolute",
