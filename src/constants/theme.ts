@@ -2,6 +2,7 @@
 export const COLORS = {
   background: '#000000',
   backgroundGradient: ['#000000', '#050505', '#000000', '#000000'] as const,
+  surface: '#0a0a0a',
   text: '#FFFFFF',
   textMuted: '#999',
   textDark: '#666',
@@ -9,6 +10,7 @@ export const COLORS = {
   borderLight: 'rgba(255, 255, 255, 0.25)',
   overlay: 'rgba(255, 255, 255, 0.1)',
   overlayStrong: 'rgba(255, 255, 255, 0.2)',
+  overlayLight: 'rgba(255, 255, 255, 0.15)',
   shimmer: 'rgba(255, 255, 255, 0.08)',
   buttonLight: 'rgba(255, 255, 255, 0.9)',
   buttonDark: '#000',

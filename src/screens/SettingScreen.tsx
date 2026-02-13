@@ -5,16 +5,18 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../constants';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFebBoxTokens, useSubtitleLanguages } from '../hooks';
-import { TokenInput, LanguagePicker, LanguageItem } from '../components';
+import { useFebBoxTokens, useSubtitleLanguages, useFebBoxServer } from '../hooks';
+import { TokenInput, LanguagePicker, LanguageItem, SettingsFebboxServerPicker } from '../components';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { tokens, isLoading: tokensLoading, addToken, updateToken, removeToken } = useFebBoxTokens();
   const { languages, isLoading: languagesLoading, addLanguage, removeLanguage } = useSubtitleLanguages();
+  const { selectedServer, availableServers, isLoading: serverLoading, selectServer } = useFebBoxServer();
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const [showServerPicker, setShowServerPicker] = useState(false);
 
-  const isLoading = tokensLoading || languagesLoading;
+  const isLoading = tokensLoading || languagesLoading || serverLoading;
 
   if (isLoading) {
     return (
@@ -63,6 +65,23 @@ export const SettingsScreen: React.FC = () => {
                     />
                   </View>
                 ))}
+
+                {/* Server Selection */}
+                {tokens.length > 0 && <View style={styles.divider} />}
+
+                <TouchableOpacity 
+                  style={styles.addButton} 
+                  onPress={() => setShowServerPicker(true)}
+                >
+                  <Ionicons name="server-outline" size={22} color="rgba(201, 255, 0, 0.9)" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addButtonText}>Server Location</Text>
+                    {selectedServer && (
+                      <Text style={styles.serverSubtext}>{selectedServer.country} - {selectedServer.description}</Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textDark} />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.noteContainer}>
@@ -112,6 +131,15 @@ export const SettingsScreen: React.FC = () => {
             selectedLanguages={languages}
             onSelect={addLanguage}
             onClose={() => setShowLanguagePicker(false)}
+          />
+
+          {/* Server Picker Modal */}
+          <SettingsFebboxServerPicker
+            visible={showServerPicker}
+            servers={availableServers}
+            selectedServer={selectedServer}
+            onSelect={selectServer}
+            onClose={() => setShowServerPicker(false)}
           />
         </SafeAreaView>
       </LinearGradient>
@@ -193,6 +221,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(201, 255, 0, 0.9)',
     fontWeight: '600',
+  },
+  serverSubtext: {
+    fontSize: 13,
+    color: COLORS.textDark,
+    marginTop: 2,
   },
   divider: {
     height: 1,

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING } from '../constants';
 import { DetailScreenProps, TVDetails } from '../types';
 import { useContentDetails, useSeasonData, useSubtitlePreferences } from '../hooks';
-import { getFebBoxStream } from '../services/febbox';
+import { getFebBoxStream, getFebBoxStreamDirect } from '../services/febbox';
 import {
   DetailHeader,
   DetailHeroBackdrop,
@@ -17,6 +18,7 @@ import {
   DetailCastSection,
   DetailVideosSection,
   DetailSimilarSection,
+  DetailShareLinkSection,
 } from '../components';
 import {
   getYear,
@@ -26,6 +28,8 @@ import {
   getTrailers,
   getSimilarContent,
 } from '../utils/detailHelpers';
+
+const SHARE_KEY_STORAGE_PREFIX = '@febbox_share_key_';
 
 /**
  * Detail screen for movies and TV shows
@@ -41,6 +45,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   // Track selected episode for TV shows
   const [selectedEpisode, setSelectedEpisode] = useState(1);
   const [loadingStream, setLoadingStream] = useState(false);
+  const [shareKey, setShareKey] = useState<string | undefined>(); // Store share key
 
   // Load content details
   const { details, loading, error, loadDetails } = useContentDetails(item.id, mediaType);
@@ -58,6 +63,36 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     setShowSeasonPicker,
   } = useSeasonData(item.id, isTVShow, !!details);
 
+  /**
+   * Generate storage key for this content
+   */
+  const getStorageKey = () => {
+    if (isTVShow) {
+      return `${SHARE_KEY_STORAGE_PREFIX}${mediaType}_${item.id}_s${selectedSeason}`;
+    }
+    return `${SHARE_KEY_STORAGE_PREFIX}${mediaType}_${item.id}`;
+  };
+
+  /**
+   * Load existing share key from storage
+   */
+  useEffect(() => {
+    const loadShareKey = async () => {
+      try {
+        const storageKey = getStorageKey();
+        const savedShareKey = await AsyncStorage.getItem(storageKey);
+        if (savedShareKey) {
+          console.log('[DetailScreen] Loaded saved share key:', savedShareKey);
+          setShareKey(savedShareKey);
+        }
+      } catch (error) {
+        console.error('[DetailScreen] Error loading share key:', error);
+      }
+    };
+
+    loadShareKey();
+  }, [item.id, mediaType, selectedSeason]);
+
   // Get formatted data
   const year = getYear(details);
   const runtime = getRuntime(details);
@@ -68,15 +103,52 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   const topCast = details?.credits.cast.slice(0, 15) || [];
 
   /**
+   * Parse share key from URL or return as-is if already a key
+   */
+  const parseShareKey = (input: string): string => {
+    const trimmed = input.trim();
+    
+    // If it's a URL, extract the share key
+    const urlMatch = trimmed.match(/febbox\.com\/share\/([a-zA-Z0-9]+)/);
+    if (urlMatch) {
+      return urlMatch[1];
+    }
+    
+    // Otherwise assume it's already a share key
+    return trimmed;
+  };
+
+  /**
    * Fetch streaming data using FebBox service
+   * Uses direct share key if available, falls back to TMDB-based API
    */
   const fetchStreamingData = async (episodeNumber?: number) => {
     try {
       setLoadingStream(true);
 
-      const result = isTVShow
-        ? await getFebBoxStream(item.id, 'tv', selectedSeason, episodeNumber || selectedEpisode)
-        : await getFebBoxStream(item.id, 'movie');
+      let result;
+
+      if (shareKey) {
+        // Use direct FebBox share key
+        console.log('[DetailScreen] Using direct share key:', shareKey);
+        result = isTVShow
+          ? await getFebBoxStreamDirect(shareKey, 'tv', selectedSeason, episodeNumber || selectedEpisode)
+          : await getFebBoxStreamDirect(shareKey, 'movie');
+      } else {
+        // Fall back to API
+        console.log('[DetailScreen] Using TMDB-based API');
+        result = isTVShow
+          ? await getFebBoxStream(item.id, 'tv', selectedSeason, episodeNumber || selectedEpisode)
+          : await getFebBoxStream(item.id, 'movie');
+        
+        // AUTO-SAVE share key if returned
+        if (result.success && result.shareKey) {
+          console.log('[DetailScreen] Auto-saving share key from API:', result.shareKey);
+          setShareKey(result.shareKey);
+          const storageKey = getStorageKey();
+          await AsyncStorage.setItem(storageKey, result.shareKey);
+        }
+      }
 
       if (!result.success || !result.streamUrl) {
         Alert.alert('Error', result.error || 'Failed to load stream. Please try again.');
@@ -90,6 +162,47 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       return null;
     } finally {
       setLoadingStream(false);
+    }
+  };
+
+  /**
+   * Handle share link submission
+   */
+  const handleShareLinkSubmit = async (input: string) => {
+    try {
+      const parsedShareKey = parseShareKey(input);
+      
+      if (!parsedShareKey) {
+        Alert.alert('Error', 'Invalid share link or key');
+        return;
+      }
+
+      console.log('[DetailScreen] Saving share key:', parsedShareKey);
+
+      // Save to state
+      setShareKey(parsedShareKey);
+
+      // Save to AsyncStorage
+      const storageKey = getStorageKey();
+      await AsyncStorage.setItem(storageKey, parsedShareKey);
+
+    } catch (error) {
+      console.error('[DetailScreen] Error saving share key:', error);
+      Alert.alert('Error', 'Failed to save share link');
+    }
+  };
+
+  /**
+   * Clear saved share key
+   */
+  const handleClearShareKey = async () => {
+    try {
+      setShareKey(undefined);
+      const storageKey = getStorageKey();
+      await AsyncStorage.removeItem(storageKey);
+      Alert.alert('Success', 'Share link cleared');
+    } catch (error) {
+      console.error('[DetailScreen] Error clearing share key:', error);
     }
   };
 
@@ -267,6 +380,16 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
 
         {/* Videos/Trailers */}
         <DetailVideosSection videos={trailers} />
+
+        {/* Share Link Input */}
+        <DetailShareLinkSection
+          onSubmit={handleShareLinkSubmit}
+          onClear={shareKey ? handleClearShareKey : undefined}
+          mediaType={mediaType}
+          season={isTVShow ? selectedSeason : undefined}
+          episode={isTVShow ? selectedEpisode : undefined}
+          existingShareKey={shareKey}
+        />
 
         {/* Similar Content */}
         <DetailSimilarSection

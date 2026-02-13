@@ -16,12 +16,15 @@ const subtitlesClient = axios.create({
   timeout: 15000,
 });
 
+export type SubtitleSortStrategy = 'smart' | 'popular' | 'recent';
+
 interface SubtitleSearchParams {
   tmdbId: number;
   language: string; // e.g., 'eng', 'spa', 'fre'
   mediaType: 'movie' | 'tv';
   season?: number;
   episode?: number;
+  sortBy?: SubtitleSortStrategy; // how to sort subtitle results
 }
 
 interface OpenSubtitlesResponse {
@@ -38,6 +41,9 @@ interface SubtitleResult {
   success: boolean;
   srtContent?: string;
   error?: string;
+  totalAvailable?: number; // total subtitles found
+  currentIndex?: number; // which one we selected (0-based)
+  releaseName?: string; // the release name of the selected subtitle
 }
 
 /**
@@ -51,11 +57,8 @@ async function searchSubtitles(
 ): Promise<OpenSubtitlesResponse[]> {
   const parts: string[] = [];
   
-  // Clean IMDB ID (remove 'tt' prefix if present)
   const cleanImdbId = imdbId.startsWith('tt') ? imdbId.slice(2) : imdbId;
   
-  // IMPORTANT: Order matters for OpenSubtitles API
-  // Correct order: episode/imdbid/season/sublanguageid
   if (episode !== undefined) {
     parts.push(`episode-${episode}`);
   }
@@ -104,12 +107,75 @@ async function downloadAndDecompressSubtitle(downloadUrl: string): Promise<strin
 }
 
 /**
- * Main function to get subtitles
- * Returns the SRT file content as text
+ * Score subtitle based on how likely it matches streaming sources
+ * Higher score = better match
  */
-export async function getSubtitles(params: SubtitleSearchParams): Promise<SubtitleResult> {
+function scoreSubtitleForStreaming(subtitle: OpenSubtitlesResponse): number {
+  const name = subtitle.MovieName.toLowerCase();
+  let score = 0;
+  
+  // Modern streaming releases (best for new content)
+  if (name.includes('web-dl')) score += 100;
+  if (name.includes('webrip')) score += 90;
+  if (name.includes('web.')) score += 85;
+  if (name.includes('amzn') || name.includes('nf') || name.includes('dsnp')) score += 80;
+  
+  // Physical media releases (good for older content, complete episodes)
+  if (name.includes('bluray') || name.includes('brrip') || name.includes('bdrip')) score += 70;
+  if (name.includes('dvdrip')) score += 60;
+  
+  // AVOID broadcast releases (has "Previously on..." intros and ads)
+  if (name.includes('hdtv')) score -= 100;
+  
+  // Add download popularity bonus
+  const downloads = parseInt(subtitle.SubDownloadsCnt) || 0;
+  score += Math.min(downloads / 10000, 30);
+  
+  // Prefer HI (hearing impaired) or CC (closed captions) for completeness
+  if (name.includes('.hi.') || name.includes('.cc.')) score += 5;
+  
+  return score;
+}
+
+/**
+ * Sort subtitles based on strategy
+ */
+function sortSubtitles(
+  results: OpenSubtitlesResponse[], 
+  strategy: SubtitleSortStrategy = 'smart'
+): OpenSubtitlesResponse[] {
+  const sorted = [...results];
+  
+  switch (strategy) {
+    case 'popular':
+      // Sort purely by download count (most popular first)
+      return sorted.sort((a, b) => {
+        const downloadsA = parseInt(a.SubDownloadsCnt) || 0;
+        const downloadsB = parseInt(b.SubDownloadsCnt) || 0;
+        return downloadsB - downloadsA;
+      });
+      
+    case 'recent':
+      // Keep original order from API (usually most recent first)
+      return sorted;
+      
+    case 'smart':
+    default:
+      // Smart scoring (avoid HDTV, prefer WEB/BluRay + popularity)
+      return sorted.sort((a, b) => {
+        const scoreA = scoreSubtitleForStreaming(a);
+        const scoreB = scoreSubtitleForStreaming(b);
+        return scoreB - scoreA;
+      });
+  }
+}
+
+export async function getSubtitles(
+  params: SubtitleSearchParams,
+  subtitleIndex: number = 0
+): Promise<SubtitleResult> {
   try {
-    const { tmdbId, language, mediaType, season, episode } = params;
+    const { tmdbId, language, mediaType, season, episode, sortBy = 'smart' } = params;
     
     const imdbId = await getImdbId(tmdbId, mediaType);
     
@@ -129,20 +195,28 @@ export async function getSubtitles(params: SubtitleSearchParams): Promise<Subtit
       };
     }
     
-    const bestSubtitle = results[0];
+    // Sort results based on strategy
+    const sortedResults = sortSubtitles(results, sortBy);
     
-    if (!bestSubtitle.SubDownloadLink) {
+    // Use the requested index, or fall back to 0 if out of bounds
+    const actualIndex = Math.min(subtitleIndex, sortedResults.length - 1);
+    const selectedSubtitle = sortedResults[actualIndex];
+    
+    if (!selectedSubtitle.SubDownloadLink) {
       return {
         success: false,
         error: 'No download link available',
       };
     }
 
-    const srtContent = await downloadAndDecompressSubtitle(bestSubtitle.SubDownloadLink);
+    const srtContent = await downloadAndDecompressSubtitle(selectedSubtitle.SubDownloadLink);
     
     return {
       success: true,
       srtContent,
+      totalAvailable: sortedResults.length,
+      currentIndex: actualIndex,
+      releaseName: selectedSubtitle.MovieName,
     };
   } catch (error) {
     return {

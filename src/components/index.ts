@@ -22,9 +22,12 @@ export { DetailSeasonPicker } from './DetailSeasonPicker';
 export { DetailCastSection } from './DetailCastSection';
 export { DetailVideosSection } from './DetailVideosSection';
 export { DetailSimilarSection } from './DetailSimilarSection';
+export { DetailShareLinkSection } from './DetailShareLinkSection';
 
 // Settings Screen components
 export { TokenInput } from './SettingsTokenInput';
 export * from './SettingsTokenInput';
 export * from './SettingsLanguagePicker';
 export * from './SettingsLanguageItem';
+export * from './SettingsFebboxServerItem';
+export * from './SettingsFebboxServerPicker';

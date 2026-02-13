@@ -24,13 +24,18 @@ import { getSubtitles } from '../services/opensubtitles';
 interface SubtitleOption {
   title: string;
   language: string;
-  uri: string;
+  uri?: string; // Optional for backward compatibility
 }
 
 interface SubtitleCue {
   start: number;
   end: number;
   text: string;
+}
+
+interface SubtitleState {
+  currentIndex: number;
+  totalAvailable: number;
 }
 
 type RootStackParamList = {
@@ -76,6 +81,9 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [loadingSubtitle, setLoadingSubtitle] = useState(false);
   const [subtitleOffset, setSubtitleOffset] = useState(0);
+  
+  // Track subtitle state per language (for cycling)
+  const [subtitleStates, setSubtitleStates] = useState<{ [languageCode: string]: SubtitleState }>({});
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
   const isSeekingRef = useRef(false);
@@ -169,16 +177,15 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [currentTime, subtitleCues, subtitleOffset]);
 
   /**
-   * Load subtitle - handles both URI-based and OpenSubtitles fetching
+   * Load subtitle - handles cycling through multiple subtitle options
    */
-  const loadSubtitle = async (subtitle: SubtitleOption, index: number) => {
-    setSelectedSubIndex(index);
-    setShowSubMenu(false);
-    setControlsVisible(true);
-    setSubtitleOffset(0);
-    
+  const loadSubtitle = async (subtitle: SubtitleOption, optionIndex: number) => {
     // If it has a URI, load it directly (legacy support)
     if (subtitle.uri) {
+      setSelectedSubIndex(optionIndex);
+      setShowSubMenu(false);
+      setControlsVisible(true);
+      setSubtitleOffset(0);
       loadSubtitleFile(subtitle.uri);
       return;
     }
@@ -189,20 +196,47 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
     
+    const currentState = subtitleStates[subtitle.language];
+    
+    // Determine which subtitle index to fetch
+    let subtitleIndex = 0;
+    if (currentState) {
+      // Cycle to next subtitle
+      subtitleIndex = (currentState.currentIndex + 1) % currentState.totalAvailable;
+    }
+    
     setLoadingSubtitle(true);
+    setShowSubMenu(false);
+    setControlsVisible(true);
     
     try {
-      const result = await getSubtitles({
-        tmdbId,
-        language: subtitle.language,
-        mediaType,
-        season,
-        episode,
-      });
+      const result = await getSubtitles(
+        {
+          tmdbId,
+          language: subtitle.language,
+          mediaType,
+          season,
+          episode,
+          sortBy: 'popular', // Use popular sorting for best results
+        },
+        subtitleIndex
+      );
       
       if (result.success && result.srtContent) {
         const cues = parseSRT(result.srtContent);
         setSubtitleCues(cues);
+        setSelectedSubIndex(optionIndex);
+        
+        // Update subtitle state for this language
+        setSubtitleStates(prev => ({
+          ...prev,
+          [subtitle.language]: {
+            currentIndex: result.currentIndex || 0,
+            totalAvailable: result.totalAvailable || 1,
+          }
+        }));
+        
+        console.log(`Loaded subtitle ${(result.currentIndex || 0) + 1}/${result.totalAvailable || 1}: ${result.releaseName}`);
       } else {
         console.error('Failed to fetch subtitles:', result.error);
         setSubtitleCues([]);
@@ -228,8 +262,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       let text: string;
       
       if (isGzipped) {
-        // This shouldn't happen since we're using OpenSubtitles service
-        // but keeping for backward compatibility
         const arrayBuffer = await response.arrayBuffer();
         const pako = require('pako');
         const compressed = new Uint8Array(arrayBuffer);
@@ -311,6 +343,15 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleExit = () => navigation.goBack();
+
+  const handleSubtitleOffClick = () => {
+    setSelectedSubIndex(-1);
+    setSubtitleCues([]);
+    setCurrentSubtitle("");
+    setShowSubMenu(false);
+    setControlsVisible(true);
+    setSubtitleOffset(0);
+  };
 
   const subtitleOptions = [
     { title: "Off", language: "off", uri: "" },
@@ -411,34 +452,41 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.menu}>
           <Text style={styles.menuTitle}>Subtitles</Text>
           <ScrollView style={styles.menuScroll}>
-            {subtitleOptions.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.menuItem,
-                  selectedSubIndex === index - 1 && styles.menuItemActive,
-                ]}
-                onPress={() => {
-                  if (index === 0) {
-                    // "Off" option
-                    setSelectedSubIndex(-1);
-                    setSubtitleCues([]);
-                    setCurrentSubtitle("");
-                    setShowSubMenu(false);
-                    setControlsVisible(true);
-                    setSubtitleOffset(0);
-                  } else {
-                    // Language option
-                    loadSubtitle(item, index - 1);
-                  }
-                }}
-              >
-                <Text style={styles.menuItemText}>{item.title}</Text>
-                {selectedSubIndex === index - 1 && (
-                  <Text style={styles.checkmark}>✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
+            {subtitleOptions.map((item, index) => {
+              const optionIndex = index - 1; // Adjust for "Off" option
+              const isSelected = selectedSubIndex === optionIndex;
+              const state = subtitleStates[item.language];
+              
+              // Build display title with subtitle count
+              let displayTitle = item.title;
+              if (isSelected && state && state.totalAvailable > 1) {
+                displayTitle = `${item.title} (${state.currentIndex + 1}/${state.totalAvailable})`;
+              }
+              
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.menuItem,
+                    isSelected && styles.menuItemActive,
+                  ]}
+                  onPress={() => {
+                    if (index === 0) {
+                      // "Off" option
+                      handleSubtitleOffClick();
+                    } else {
+                      // Language option - cycle through subtitles
+                      loadSubtitle(item, optionIndex);
+                    }
+                  }}
+                >
+                  <Text style={styles.menuItemText}>{displayTitle}</Text>
+                  {isSelected && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
             
             {selectedSubIndex !== -1 && (
               <View style={styles.offsetContainer}>
@@ -451,18 +499,18 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
                 <Slider
                   style={styles.offsetSlider}
                   value={subtitleOffset}
-                  minimumValue={-10}
-                  maximumValue={10}
-                  step={0.1}
+                  minimumValue={-30}
+                  maximumValue={30}
+                  step={0.5}
                   minimumTrackTintColor="#4CAF50"
                   maximumTrackTintColor="rgba(255,255,255,0.2)"
                   thumbTintColor="transparent"
                   onValueChange={(value) => setSubtitleOffset(value)}
                 />
                 <View style={styles.offsetMarkers}>
-                  <Text style={styles.offsetMarkerText}>-10s</Text>
+                  <Text style={styles.offsetMarkerText}>-30s</Text>
                   <Text style={styles.offsetMarkerText}>0</Text>
-                  <Text style={styles.offsetMarkerText}>+10s</Text>
+                  <Text style={styles.offsetMarkerText}>+30s</Text>
                 </View>
               </View>
             )}
@@ -720,7 +768,7 @@ const styles = StyleSheet.create({
     right: 16,
     backgroundColor: "rgba(28,28,30,0.95)",
     borderRadius: 12,
-    width: 200,
+    width: 220,
     maxHeight: 400,
     padding: 12,
     zIndex: 20,
