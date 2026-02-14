@@ -11,6 +11,11 @@ export { useSearch } from './useSearch';
 export { useContentDetails } from './useContentDetails';
 export { useSeasonData } from './useSeasonData';
 export * from './useSubtitlePreferences';
+export { useShareKey } from './useShareKey';
+export { useStreamFetcher } from './useStreamFetcher';
+
+// Player Screen Hoooks
+export { useContinueWatching } from './useContinueWatching';
 
 // Settings Screen Hooks
 export * from './useFebboxTokens';

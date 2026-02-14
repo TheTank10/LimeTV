@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Image, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Movie } from '../types';
 import { getBackdropUrl, getDisplayTitle } from '../utils';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants';
@@ -15,14 +16,10 @@ interface Props {
   loading?: boolean;
 }
 
-/**
- * Hero section - large featured content banner at top of screen
- * Shows backdrop image with title and call-to-action button
- */
 export const HeroSection: React.FC<Props> = ({ item, loading = false }) => {
   const navigation = useNavigation<NavigationProp>();
   const screenWidth = Dimensions.get('window').width;
-  const heroHeight = (screenWidth * 9) / 16; // Perfect 16:9 aspect ratio
+  const heroHeight = (screenWidth * 9) / 16;
 
   if (loading || !item) {
     return (
@@ -49,12 +46,27 @@ export const HeroSection: React.FC<Props> = ({ item, loading = false }) => {
           />
         )}
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)']}
+          colors={[
+            'transparent',
+            'transparent', 
+            'rgba(0,0,0,0.4)',
+            'rgba(0,0,0,0.85)',
+            'rgba(0,0,0,0.98)'
+          ]}
+          locations={[0, 0.3, 0.5, 0.8, 1]}
           style={styles.gradient}
         >
-          <Text style={styles.title}>{getDisplayTitle(item)}</Text>
-          <TouchableOpacity style={styles.button} onPress={() => item && navigation.navigate('Detail', { item })}>
-            <Text style={styles.buttonText}>▶ Watch Now</Text>
+          <Text style={styles.title} numberOfLines={2}>
+            {getDisplayTitle(item)}
+          </Text>
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => item && navigation.navigate('Detail', { item })}
+            activeOpacity={0.7}
+          >
+            <BlurView intensity={30} style={styles.buttonBlur}>
+              <Text style={styles.buttonText}>▶  Watch Now</Text>
+            </BlurView>
           </TouchableOpacity>
         </LinearGradient>
       </View>
@@ -70,9 +82,9 @@ const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
     borderRadius: BORDER_RADIUS.xl,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#000',
     ...SHADOWS.glow,
+    elevation: 12,
   },
   image: {
     width: '100%',
@@ -88,28 +100,39 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 200,
+    height: '65%',
     justifyContent: 'flex-end',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xl,
   },
   title: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 12,
-    ...SHADOWS.textGlow,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: SPACING.sm,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   button: {
-    backgroundColor: COLORS.buttonLight,
-    paddingVertical: 10,
-    paddingHorizontal: 25,
-    borderRadius: BORDER_RADIUS.sm,
     alignSelf: 'flex-start',
+    borderRadius: BORDER_RADIUS.sm,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  buttonBlur: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
-    color: COLORS.buttonDark,
-    fontSize: FONT_SIZES.md,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

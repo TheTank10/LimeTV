@@ -42,6 +42,7 @@ export type RootStackParamList = {
     mediaType?: 'movie' | 'tv';
     season?: number;
     episode?: number;
+    resumeTimestamp?: number;
   };
   Settings: undefined
 };

@@ -20,7 +20,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Audio } from 'expo-av';
 import { getSubtitles } from '../services/opensubtitles';
-import { useSubtitleStyling } from '../hooks';
+import { useSubtitleStyling, useContinueWatching } from '../hooks';
 
 interface SubtitleOption {
   title: string;
@@ -49,6 +49,7 @@ type RootStackParamList = {
     mediaType?: 'movie' | 'tv';
     season?: number;
     episode?: number;
+    resumeTimestamp?: number;
   };
 };
 
@@ -75,11 +76,15 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     tmdbId, 
     mediaType, 
     season, 
-    episode 
+    episode,
+    resumeTimestamp 
   } = route.params;
 
   // Get user subtitle styling preferences
   const { styling } = useSubtitleStyling();
+  
+  // Continue watching hook
+  const { saveProgress } = useContinueWatching();
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -96,6 +101,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
   const isSeekingRef = useRef(false);
+  const progressSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   const player = useVideoPlayer(  
     { uri: videoUrl, contentType: 'hls' },
@@ -134,6 +140,16 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [player.duration]);
 
+  // Resume from saved timestamp if available
+  useEffect(() => {
+    if (resumeTimestamp && duration > 0 && currentTime === 0) {
+      // Only resume if we're at the beginning and duration is loaded
+      player.currentTime = resumeTimestamp;
+      setCurrentTime(resumeTimestamp);
+      console.log(`[PlayerScreen] Resuming from ${resumeTimestamp}s`);
+    }
+  }, [resumeTimestamp, duration]);
+
   useEffect(() => {
     setIsPlaying(playerIsPlaying);
   }, [playerIsPlaying]);
@@ -159,6 +175,9 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", async () => {
+      // Save progress before leaving
+      await handleSaveProgress();
+      
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       StatusBar.setHidden(false);
       if (Platform.OS === "android") {
@@ -166,7 +185,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     });
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, currentTime, duration, tmdbId, mediaType, season, episode]);
 
   useEffect(() => {
     if (controlsVisible && !isSeeking) {
@@ -187,6 +206,45 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     const activeCue = findActiveCue(subtitleCues, currentTime - subtitleOffset);
     setCurrentSubtitle(activeCue ? activeCue.text : "");
   }, [currentTime, subtitleCues, subtitleOffset]);
+
+  // Periodic progress saving (every 20 seconds while playing)
+  useEffect(() => {
+    if (isPlaying && duration > 0 && tmdbId && mediaType) {
+      // Clear any existing timer
+      if (progressSaveTimer.current) {
+        clearTimeout(progressSaveTimer.current);
+      }
+      
+      // Set new timer for 20 seconds
+      progressSaveTimer.current = setTimeout(() => {
+        handleSaveProgress();
+      }, 20000);
+    }
+    
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (progressSaveTimer.current) {
+        clearTimeout(progressSaveTimer.current);
+        progressSaveTimer.current = null;
+      }
+    };
+  }, [isPlaying, currentTime, duration, tmdbId, mediaType, season, episode]);
+
+  // Helper function to save progress
+  const handleSaveProgress = async () => {
+    if (!tmdbId || !mediaType || duration === 0) {
+      return;
+    }
+
+    await saveProgress({
+      tmdbId,
+      mediaType,
+      timestamp: currentTime,
+      duration,
+      season,
+      episode,
+    });
+  };
 
   const loadSubtitle = async (subtitle: SubtitleOption, optionIndex: number) => {
     if (subtitle.uri) {
@@ -305,9 +363,11 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleScreenTap = () => setControlsVisible((v) => !v);
 
-  const togglePlayPause = () => {
+  const togglePlayPause = async () => {
     if (isPlaying) {
       player.pause();
+      // Save progress when pausing
+      await handleSaveProgress();
     } else {
       player.play();
     }
@@ -343,7 +403,11 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     }, 200);
   };
 
-  const handleExit = () => navigation.goBack();
+  const handleExit = async () => {
+    // Save progress before exiting
+    await handleSaveProgress();
+    navigation.goBack();
+  };
 
   const handleSubtitleOffClick = () => {
     setSelectedSubIndex(-1);

@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING } from '../constants';
 import { DetailScreenProps, TVDetails } from '../types';
-import { useContentDetails, useSeasonData, useSubtitlePreferences } from '../hooks';
-import { getFebBoxStream, getFebBoxStreamDirect } from '../services/febbox';
+import { 
+  useContentDetails, 
+  useSeasonData, 
+  useSubtitlePreferences, 
+  useContinueWatching,
+  useShareKey,
+  useStreamFetcher
+} from '../hooks';
 import {
   DetailHeader,
   DetailHeroBackdrop,
@@ -29,8 +34,6 @@ import {
   getSimilarContent,
 } from '../utils/detailHelpers';
 
-const SHARE_KEY_STORAGE_PREFIX = '@febbox_share_key_';
-
 /**
  * Detail screen for movies and TV shows
  * Displays comprehensive information including cast, episodes, trailers, and similar content
@@ -44,14 +47,16 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
 
   // Track selected episode for TV shows
   const [selectedEpisode, setSelectedEpisode] = useState(1);
-  const [loadingStream, setLoadingStream] = useState(false);
-  const [shareKey, setShareKey] = useState<string | undefined>(); // Store share key
 
   // Load content details
   const { details, loading, error, loadDetails } = useContentDetails(item.id, mediaType);
 
   // Load user subtitle preferences
   const { languages: subtitleLanguages } = useSubtitlePreferences();
+
+  // Continue watching
+  const { getProgress } = useContinueWatching();
+  const [continueWatchingData, setContinueWatchingData] = useState<any>(null);
 
   // Load season data for TV shows
   const {
@@ -63,35 +68,20 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     setShowSeasonPicker,
   } = useSeasonData(item.id, isTVShow, !!details);
 
-  /**
-   * Generate storage key for this content
-   */
-  const getStorageKey = () => {
-    if (isTVShow) {
-      return `${SHARE_KEY_STORAGE_PREFIX}${mediaType}_${item.id}_s${selectedSeason}`;
-    }
-    return `${SHARE_KEY_STORAGE_PREFIX}${mediaType}_${item.id}`;
-  };
+  // Share key management
+  const { shareKey, saveShareKey, updateShareKey, clearShareKey } = useShareKey({
+    itemId: item.id,
+    mediaType,
+    selectedSeason,
+  });
 
-  /**
-   * Load existing share key from storage
-   */
-  useEffect(() => {
-    const loadShareKey = async () => {
-      try {
-        const storageKey = getStorageKey();
-        const savedShareKey = await AsyncStorage.getItem(storageKey);
-        if (savedShareKey) {
-          console.log('[DetailScreen] Loaded saved share key:', savedShareKey);
-          setShareKey(savedShareKey);
-        }
-      } catch (error) {
-        console.error('[DetailScreen] Error loading share key:', error);
-      }
-    };
-
-    loadShareKey();
-  }, [item.id, mediaType, selectedSeason]);
+  // Stream fetching
+  const { fetchStream, loading: loadingStream } = useStreamFetcher({
+    itemId: item.id,
+    mediaType,
+    shareKey,
+    onShareKeyUpdate: updateShareKey,
+  });
 
   // Get formatted data
   const year = getYear(details);
@@ -103,122 +93,56 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   const topCast = details?.credits.cast.slice(0, 15) || [];
 
   /**
-   * Parse share key from URL or return as-is if already a key
+   * Load continue watching data on mount
    */
-  const parseShareKey = (input: string): string => {
-    const trimmed = input.trim();
-    
-    // If it's a URL, extract the share key
-    const urlMatch = trimmed.match(/febbox\.com\/share\/([a-zA-Z0-9]+)/);
-    if (urlMatch) {
-      return urlMatch[1];
-    }
-    
-    // Otherwise assume it's already a share key
-    return trimmed;
-  };
+  useEffect(() => {
+    const loadContinueWatching = async () => {
+      try {
+        const progress = await getProgress(item.id);
+        setContinueWatchingData(progress);
+        
+        // If TV show, update selected season/episode from continue watching
+        if (progress && isTVShow && progress.season && progress.episode) {
+          setSelectedSeason(progress.season);
+          setSelectedEpisode(progress.episode);
+        }
+      } catch (error) {
+        console.error('[DetailScreen] Error loading continue watching:', error);
+      }
+    };
+
+    loadContinueWatching();
+  }, [item.id]);
 
   /**
-   * Fetch streaming data using FebBox service
-   * Uses direct share key if available, falls back to TMDB-based API
+   * Get resume timestamp for current episode/movie
    */
-  const fetchStreamingData = async (episodeNumber?: number) => {
-    try {
-      setLoadingStream(true);
+  const getResumeTimestamp = (): number | undefined => {
+    if (!continueWatchingData) return undefined;
 
-      let result;
-
-      if (shareKey) {
-        // Try using direct FebBox share key first
-        console.log('[DetailScreen] Using direct share key:', shareKey);
-        result = isTVShow
-          ? await getFebBoxStreamDirect(shareKey, 'tv', selectedSeason, episodeNumber || selectedEpisode)
-          : await getFebBoxStreamDirect(shareKey, 'movie');
-
-        // If direct method fails, fall back to API
-        if (!result.success) {
-          console.log('[DetailScreen] Share key failed, falling back to API');
-          
-          result = isTVShow
-            ? await getFebBoxStream(item.id, 'tv', selectedSeason, episodeNumber || selectedEpisode)
-            : await getFebBoxStream(item.id, 'movie');
-
-          // If API succeeds and returns a new share key, replace the old one
-          if (result.success && result.shareKey) {
-            console.log('[DetailScreen] Replacing old share key with new one:', result.shareKey);
-            setShareKey(result.shareKey);
-            const storageKey = getStorageKey();
-            await AsyncStorage.setItem(storageKey, result.shareKey);
-          }
-        }
-      } else {
-        // No share key saved, use API directly
-        console.log('[DetailScreen] Using TMDB-based API');
-        result = isTVShow
-          ? await getFebBoxStream(item.id, 'tv', selectedSeason, episodeNumber || selectedEpisode)
-          : await getFebBoxStream(item.id, 'movie');
-        
-        // AUTO-SAVE share key if returned
-        if (result.success && result.shareKey) {
-          console.log('[DetailScreen] Auto-saving share key from API:', result.shareKey);
-          setShareKey(result.shareKey);
-          const storageKey = getStorageKey();
-          await AsyncStorage.setItem(storageKey, result.shareKey);
-        }
-      }
-
-      if (!result.success || !result.streamUrl) {
-        Alert.alert('Error', result.error || 'Failed to load stream. Please try again.');
-        return null;
-      }
-
-      return result.streamUrl;
-    } catch (error) {
-      console.error('Error fetching streaming data:', error);
-      Alert.alert('Error', 'Failed to load streaming information. Please try again.');
-      return null;
-    } finally {
-      setLoadingStream(false);
+    // For movies, always use the saved timestamp
+    if (!isTVShow) {
+      return continueWatchingData.timestamp;
     }
+
+    // For TV shows, only use timestamp if it matches current season/episode
+    if (
+      continueWatchingData.season === selectedSeason &&
+      continueWatchingData.episode === selectedEpisode
+    ) {
+      return continueWatchingData.timestamp;
+    }
+
+    return undefined;
   };
 
   /**
    * Handle share link submission
    */
   const handleShareLinkSubmit = async (input: string) => {
-    try {
-      const parsedShareKey = parseShareKey(input);
-      
-      if (!parsedShareKey) {
-        Alert.alert('Error', 'Invalid share link or key');
-        return;
-      }
-
-      console.log('[DetailScreen] Saving share key:', parsedShareKey);
-
-      // Save to state
-      setShareKey(parsedShareKey);
-
-      // Save to AsyncStorage
-      const storageKey = getStorageKey();
-      await AsyncStorage.setItem(storageKey, parsedShareKey);
-
-    } catch (error) {
-      console.error('[DetailScreen] Error saving share key:', error);
-      Alert.alert('Error', 'Failed to save share link');
-    }
-  };
-
-  /**
-   * Clear saved share key
-   */
-  const handleClearShareKey = async () => {
-    try {
-      setShareKey(undefined);
-      const storageKey = getStorageKey();
-      await AsyncStorage.removeItem(storageKey);
-    } catch (error) {
-      console.error('[DetailScreen] Error clearing share key:', error);
+    const success = await saveShareKey(input);
+    if (!success) {
+      Alert.alert('Error', 'Invalid share link or key');
     }
   };
 
@@ -233,16 +157,19 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
    * Handle play button press
    */
   const handlePlay = async () => {
-    const streamUrl = await fetchStreamingData();
+    const streamUrl = await fetchStream(
+      isTVShow ? selectedSeason : undefined,
+      isTVShow ? selectedEpisode : undefined
+    );
     
-    if (!streamUrl) {
-      return;
-    }
+    if (!streamUrl) return;
 
     const subtitle = isTVShow 
       ? `S${selectedSeason}:E${selectedEpisode}` 
       : year;
     
+    const resumeTimestamp = getResumeTimestamp();
+
     navigation.navigate('Player', {
       videoUrl: streamUrl,
       title: displayTitle,
@@ -256,6 +183,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       mediaType,
       season: isTVShow ? selectedSeason : undefined,
       episode: isTVShow ? selectedEpisode : undefined,
+      resumeTimestamp,
     });
   };
 
@@ -264,13 +192,21 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
    */
   const handleEpisodePress = async (episodeNumber: number) => {
     setSelectedEpisode(episodeNumber);
-    const streamUrl = await fetchStreamingData(episodeNumber);
+    const streamUrl = await fetchStream(selectedSeason, episodeNumber);
     
-    if (!streamUrl) {
-      return;
-    }
+    if (!streamUrl) return;
 
     const subtitle = `S${selectedSeason}:E${episodeNumber}`;
+    
+    // Check if we have progress for this specific episode
+    let resumeTimestamp: number | undefined;
+    if (
+      continueWatchingData &&
+      continueWatchingData.season === selectedSeason &&
+      continueWatchingData.episode === episodeNumber
+    ) {
+      resumeTimestamp = continueWatchingData.timestamp;
+    }
     
     navigation.navigate('Player', {
       videoUrl: streamUrl,
@@ -285,6 +221,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       mediaType,
       season: selectedSeason,
       episode: episodeNumber,
+      resumeTimestamp,
     });
   };
 
@@ -400,7 +337,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         {/* Share Link Input */}
         <DetailShareLinkSection
           onSubmit={handleShareLinkSubmit}
-          onClear={shareKey ? handleClearShareKey : undefined}
+          onClear={shareKey ? clearShareKey : undefined}
           mediaType={mediaType}
           season={isTVShow ? selectedSeason : undefined}
           episode={isTVShow ? selectedEpisode : undefined}

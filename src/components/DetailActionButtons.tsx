@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SPACING, COLORS, FONT_SIZES, BORDER_RADIUS } from '../constants';
+import { useContinueWatching } from '../hooks';
 
 interface DetailActionButtonsProps {
   onPlay: () => void;
@@ -21,10 +22,14 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
 }) => {
   const [isInList, setIsInList] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [continueWatchingData, setContinueWatchingData] = useState<any>(null);
+  
+  const { getProgress } = useContinueWatching();
 
-  // Check if item is in list on mount
+  // Check if item is in list and has continue watching progress on mount
   useEffect(() => {
     checkIfInList();
+    checkContinueWatching();
   }, [itemId]);
 
   const checkIfInList = async () => {
@@ -36,6 +41,15 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
       }
     } catch (error) {
       console.error('Error checking list:', error);
+    }
+  };
+
+  const checkContinueWatching = async () => {
+    try {
+      const progress = await getProgress(itemId);
+      setContinueWatchingData(progress);
+    } catch (error) {
+      console.error('Error checking continue watching:', error);
     }
   };
 
@@ -69,10 +83,29 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
     Alert.alert('Share', 'Share functionality coming soon');
   };
 
+  // Format play button text based on continue watching data
+  const getPlayButtonText = () => {
+    if (!continueWatchingData) {
+      return '▶  Play';
+    }
+
+    const { season, episode, mediaType } = continueWatchingData;
+    
+    // For TV shows with season/episode info
+    if (mediaType === 'tv' && season !== undefined && episode !== undefined) {
+      const seasonStr = season.toString().padStart(2, '0');
+      const episodeStr = episode.toString().padStart(2, '0');
+      return `▶  Continue S${seasonStr}E${episodeStr}`;
+    }
+    
+    // For movies or TV shows without episode info
+    return '▶  Continue';
+  };
+
   return (
     <View style={styles.actionButtons}>
       <TouchableOpacity style={styles.playButton} onPress={onPlay}>
-        <Text style={styles.playButtonText}>▶  Play</Text>
+        <Text style={styles.playButtonText}>{getPlayButtonText()}</Text>
       </TouchableOpacity>
       
       <TouchableOpacity 

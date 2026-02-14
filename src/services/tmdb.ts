@@ -6,6 +6,7 @@ import { Movie, Category, MediaType } from '../types';
 import { ContentDetails, MovieDetails, TVDetails, SeasonDetails } from '../types';
 
 const MY_LIST_KEY = '@limetv_my_list';
+const CONTINUE_WATCHING_KEY = '@continue_watching';
 
 // Create axios instance with Bearer token authentication
 const tmdbClient = axios.create({
@@ -91,6 +92,66 @@ const fetchMyList = async (): Promise<Movie[]> => {
 };
 
 /**
+ * Fetch Continue Watching items from AsyncStorage
+ * Returns Movie[] with progress metadata attached
+ */
+export const fetchContinueWatching = async (): Promise<Movie[]> => {
+  try {
+    const continueWatchingJson = await AsyncStorage.getItem(CONTINUE_WATCHING_KEY);
+    if (!continueWatchingJson) return [];
+    
+    const savedItems: Array<{
+      tmdbId: number;
+      mediaType: 'movie' | 'tv';
+      timestamp: number;
+      duration: number;
+      season?: number;
+      episode?: number;
+      lastWatched: number;
+    }> = JSON.parse(continueWatchingJson);
+    
+    if (savedItems.length === 0) return [];
+    
+    // Fetch TMDB details for each continue watching item
+    const itemPromises = savedItems.map(async (item) => {
+      try {
+        const endpoint = item.mediaType === 'movie' 
+          ? `/movie/${item.tmdbId}` 
+          : `/tv/${item.tmdbId}`;
+        
+        const response = await tmdbClient.get(endpoint);
+        
+        if (response.data) {
+          return {
+            ...response.data,
+            media_type: item.mediaType,
+            title: response.data.title || response.data.name,
+            // Attach progress metadata for UI
+            continueWatching: {
+              timestamp: item.timestamp,
+              duration: item.duration,
+              progress: (item.timestamp / item.duration) * 100,
+              season: item.season,
+              episode: item.episode,
+            },
+          };
+        }
+      } catch (error) {
+        console.error(`Failed to fetch TMDB data for ${item.tmdbId}:`, error);
+        return null;
+      }
+      return null;
+    });
+    
+    const items = await Promise.all(itemPromises);
+    return items.filter((item): item is Movie => item !== null);
+  } catch (error) {
+    console.error('Error loading Continue Watching:', error);
+    return [];
+  }
+};
+
+/**
  * Fetch all content for a given media type (all, movie, tv)
  * Returns hero item and categories in parallel for best performance
  */
@@ -98,9 +159,10 @@ export const fetchContent = async (type: MediaType) => {
   const config = getEndpoints(type);
 
   try {
-    const [heroResponse, myListItems, ...categoryResponses] = await Promise.all([
+    const [heroResponse, myListItems, continueWatchingItems, ...categoryResponses] = await Promise.all([
       tmdbClient.get(config.hero),
       fetchMyList(),
+      fetchContinueWatching(),
       ...config.priority.map(async (endpoint, index) => {
         const response = await tmdbClient.get(endpoint.url);
         return response;
@@ -115,21 +177,34 @@ export const fetchContent = async (type: MediaType) => {
       loading: false,
     }));
 
-    // Add My List category if items exist AND we're on 'all' tab (insert after first category)
-    const categoriesWithMyList: Category[] = [];
+    // Build categories with Continue Watching first (if items exist), then My List, then rest
+    const categoriesWithSpecialSections: Category[] = [];
+    
+    // Add first priority category (usually Trending)
     if (priorityCategories.length > 0) {
-      categoriesWithMyList.push(priorityCategories[0]); // Trending
+      categoriesWithSpecialSections.push(priorityCategories[0]);
     }
     
+    // Add Continue Watching (only on 'all' tab and if items exist)
+    if (continueWatchingItems.length > 0 && type === 'all') {
+      categoriesWithSpecialSections.push({
+        title: 'Continue Watching',
+        items: continueWatchingItems,
+        loading: false,
+      });
+    }
+    
+    // Add My List (only on 'all' tab and if items exist)
     if (myListItems.length > 0 && type === 'all') {
-      categoriesWithMyList.push({
+      categoriesWithSpecialSections.push({
         title: 'My List',
         items: myListItems,
         loading: false,
       });
     }
     
-    categoriesWithMyList.push(...priorityCategories.slice(1)); // Rest of categories
+    // Add rest of priority categories
+    categoriesWithSpecialSections.push(...priorityCategories.slice(1));
 
     // Add lazy category placeholders
     const lazyPlaceholders: Category[] = config.lazy.map((endpoint) => ({
@@ -140,7 +215,7 @@ export const fetchContent = async (type: MediaType) => {
 
     return {
       heroItem,
-      categories: [...categoriesWithMyList, ...lazyPlaceholders],
+      categories: [...categoriesWithSpecialSections, ...lazyPlaceholders],
     };
   } catch (error: unknown) {
     console.error('❌ ERROR LOADING CONTENT:');
@@ -240,7 +315,7 @@ export const fetchContentDetails = async (
       recommendations: recommendationsRes.data,
     };
   } catch (error: unknown) {
-    console.error('❌ ERROR LOADING DETAILS:');
+    console.error('ERROR LOADING DETAILS:');
     if (axios.isAxiosError(error)) {
       console.error('  Status:', error.response?.status);
       console.error('  Response data:', JSON.stringify(error.response?.data, null, 2));
@@ -260,7 +335,7 @@ export const fetchSeasonDetails = async (
     const response = await tmdbClient.get(`/tv/${tvId}/season/${seasonNumber}`);
     return response.data;
   } catch (error: unknown) {
-    console.error('❌ ERROR LOADING SEASON:');
+    console.error('ERROR LOADING SEASON:');
     if (axios.isAxiosError(error)) {
       console.error('  Status:', error.response?.status);
       console.error('  Response data:', JSON.stringify(error.response?.data, null, 2));
