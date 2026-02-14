@@ -97,11 +97,14 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
   const isSeekingRef = useRef(false);
 
-  const player = useVideoPlayer(videoUrl, (player) => {
-    player.loop = false;
-    player.timeUpdateEventInterval = 0.1;
-    player.play();
-  });
+  const player = useVideoPlayer(  
+    { uri: videoUrl, contentType: 'hls' },
+    (player) => {  
+      player.loop = false;  
+      player.timeUpdateEventInterval = 0.1;  
+      player.play();  
+    }  
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({ autoHideHomeIndicator: true });
