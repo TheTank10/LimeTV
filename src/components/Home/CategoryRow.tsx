@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { Category, RootStackParamList } from '../../types';
-import { COLORS, SPACING, FONT_SIZES, SHADOWS } from '../../constants';
+import { COLORS, SPACING, FONT_SIZES } from '../../constants';
 
 import { PosterCard } from './PosterCard';
 import { SkeletonCard } from './SkeletonCard';
@@ -61,7 +61,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginLeft: SPACING.lg,
     marginBottom: 12,
-    ...SHADOWS.textGlowStrong,
   },
   row: {
     paddingLeft: SPACING.lg,

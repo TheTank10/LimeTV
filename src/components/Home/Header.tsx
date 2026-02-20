@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 
 import { MediaType } from '../../types';
@@ -42,10 +42,6 @@ export const Header: React.FC<Props> = ({
       <BlurView intensity={95} tint="dark" style={styles.blurContainer}>
         <View style={styles.container}>
         {/* Logo */}
-        <Animated.View style={{ opacity: animations?.logoOpacity, flexDirection: 'row' }}>
-          <Text style={[styles.logo, { color: 'rgba(201, 255, 0, 0.7)' }]}>LIME</Text>
-          <Text style={[styles.logo, { color: 'rgba(255, 255, 255, 0.7)' }]}> TV</Text>
-        </Animated.View>
 
         {/* Tabs (hidden when searching) */}
         {!isSearching && (

@@ -80,11 +80,9 @@ const styles = StyleSheet.create({
   poster: {
     width: 125,
     height: 188,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.sm,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
+    },
   loadingOverlay: {
     position: 'absolute',
     top: 0,

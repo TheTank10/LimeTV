@@ -3,7 +3,7 @@ export const TMDB_API_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhNTAwMDQ5ZjNlMDYxMD
 export const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 export const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w342'; // Higher quality for posters
 export const TMDB_POSTER_HIGH_URL = 'https://image.tmdb.org/t/p/w500'; // High quality for detail screen posters
-export const TMDB_BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/w500'; // For hero section
+export const TMDB_BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/w1280'; // For hero section
 export const TMDB_BACKDROP_HIGH_URL = 'https://image.tmdb.org/t/p/w1280'; // High quality for detail screen
 
 // Search debounce delay (milliseconds)

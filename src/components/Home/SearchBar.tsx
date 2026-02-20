@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, TextInput, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,8 @@ export const SearchBar: React.FC<Props> = ({
   onClear,
   scale,
 }) => {
+  const inputRef = useRef<TextInput>(null);
+
   const animatedStyle = {
     transform: [
       { scale: scale || 1 },
@@ -31,24 +33,27 @@ export const SearchBar: React.FC<Props> = ({
 
   return (
     <Animated.View style={[styles.container, animatedStyle]}>
-      <BlurView intensity={90} tint="dark" style={styles.blur}>
-        <View style={styles.searchContent}>
-          <Ionicons name="search" size={18} color={COLORS.textDark} style={styles.searchIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Search movies & shows..."
-            placeholderTextColor={COLORS.textDark}
-            value={value}
-            onChangeText={onChangeText}
-            returnKeyType="search"
-          />
-          {value.length > 0 && (
-            <TouchableOpacity style={styles.clearButton} onPress={onClear}>
-              <Ionicons name="close-circle" size={18} color={COLORS.textDark} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </BlurView>
+      <TouchableOpacity activeOpacity={1} onPress={() => inputRef.current?.focus()}>
+        <BlurView intensity={90} tint="dark" style={styles.blur}>
+          <View style={styles.searchContent}>
+            <Ionicons name="search" size={18} color={COLORS.textDark} style={styles.searchIcon} />
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder="Search movies & shows..."
+              placeholderTextColor={COLORS.textDark}
+              value={value}
+              onChangeText={onChangeText}
+              returnKeyType="search"
+            />
+            {value.length > 0 && (
+              <TouchableOpacity style={styles.clearButton} onPress={onClear}>
+                <Ionicons name="close-circle" size={18} color={COLORS.textDark} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </BlurView>
+      </TouchableOpacity>
     </Animated.View>
   );
 };

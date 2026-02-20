@@ -118,7 +118,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <LinearGradient colors={COLORS.backgroundGradient} style={styles.gradient}>
-        <SafeAreaView style={styles.safeArea}  >
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
           {/* Header */}
           <Header
             selectedTab={selectedTab}
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 160, 
+    paddingTop: 140, 
     paddingBottom: SPACING.xl,
   },
   categoryContainer: {
