@@ -15,11 +15,26 @@ const tmdbClient = axios.create({
   headers: {
     'Authorization': `Bearer ${TMDB_API_KEY}`,
     'Content-Type': 'application/json;charset=utf-8',
+    // chunked gzip streams from Cloudfront, resulting in an empty response string.
+    // By forcing identity encoding (no compression), we get the raw JSON safely.
+    'Accept-Encoding': 'identity',
   },
 });
 
+// Add dynamic cache-buster to prevent Cloudfront from serving cached GZIP binary data
+tmdbClient.interceptors.request.use((config) => {
+  if (config.method === 'get') {
+    config.params = {
+      ...config.params,
+      _cb: Date.now(),
+    };
+  }
+  return config;
+});
+
 // Helper to filter out invalid items (no poster, no backdrop, people, etc.)
-const filterValidItems = (items: TMDBRawItem[]): Movie[] => {
+const filterValidItems = (items: TMDBRawItem[] | undefined | null): Movie[] => {
+  if (!items) return [];
   return items
     .filter((item) =>
       item.poster_path &&
@@ -40,7 +55,8 @@ const filterValidItems = (items: TMDBRawItem[]): Movie[] => {
 };
 
 // Helper to find best hero item (good backdrop + high rating)
-const findBestHeroItem = (items: TMDBRawItem[]): Movie | null => {
+const findBestHeroItem = (items: TMDBRawItem[] | undefined | null): Movie | null => {
+  if (!items || items.length === 0) return null;
   // First try: find high-rated item with good images
   const validHero = items.find((item) =>
     item.backdrop_path &&
@@ -55,7 +71,7 @@ const findBestHeroItem = (items: TMDBRawItem[]): Movie | null => {
   );
 
   const selected = validHero || fallbackHero || items[0];
-  
+
   if (!selected || !selected.backdrop_path || !selected.poster_path) {
     return null;
   }
@@ -79,10 +95,10 @@ const fetchMyList = async (): Promise<Movie[]> => {
   try {
     const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
     if (!myListJson) return [];
-    
+
     const savedIds: number[] = JSON.parse(myListJson);
     if (savedIds.length === 0) return [];
-    
+
     // Fetch details for each saved item
     const itemPromises = savedIds.map(async (id) => {
       try {
@@ -96,8 +112,8 @@ const fetchMyList = async (): Promise<Movie[]> => {
         try {
           const tvRes = await tmdbClient.get(`/tv/${id}`);
           if (tvRes.data) {
-            return { 
-              ...tvRes.data, 
+            return {
+              ...tvRes.data,
               title: tvRes.data.name,
               media_type: 'tv' as const
             };
@@ -108,7 +124,7 @@ const fetchMyList = async (): Promise<Movie[]> => {
       }
       return null;
     });
-    
+
     const items = await Promise.all(itemPromises);
     return items.filter((item): item is Movie => item !== null);
   } catch (error) {
@@ -135,20 +151,20 @@ export const fetchContinueWatching = async (): Promise<Movie[]> => {
   try {
     const continueWatchingJson = await AsyncStorage.getItem(CONTINUE_WATCHING_KEY);
     if (!continueWatchingJson) return [];
-    
+
     const savedItems: ContinueWatchingStoredItem[] = JSON.parse(continueWatchingJson);
-    
+
     if (savedItems.length === 0) return [];
-    
+
     // Fetch TMDB details for each continue watching item
     const itemPromises = savedItems.map(async (item) => {
       try {
-        const endpoint = item.mediaType === 'movie' 
-          ? `/movie/${item.tmdbId}` 
+        const endpoint = item.mediaType === 'movie'
+          ? `/movie/${item.tmdbId}`
           : `/tv/${item.tmdbId}`;
-        
+
         const response = await tmdbClient.get(endpoint);
-        
+
         if (response.data) {
           return {
             ...response.data,
@@ -170,7 +186,7 @@ export const fetchContinueWatching = async (): Promise<Movie[]> => {
       }
       return null;
     });
-    
+
     const items = await Promise.all(itemPromises);
     return items.filter((item): item is Movie => item !== null);
   } catch (error) {
@@ -202,7 +218,7 @@ export const fetchContent = async (type: MediaType) => {
     ]);
 
     const heroItem = findBestHeroItem(heroResponse.data.results);
-    
+
     const priorityCategories: Category[] = config.priority.map((endpoint, i) => ({
       title: endpoint.title,
       items: filterValidItems(categoryResponses[i].data.results),
@@ -211,12 +227,12 @@ export const fetchContent = async (type: MediaType) => {
 
     // Build categories with Continue Watching first (if items exist), then My List, then rest
     const categoriesWithSpecialSections: Category[] = [];
-    
+
     // Add first priority category (usually Trending)
     if (priorityCategories.length > 0) {
       categoriesWithSpecialSections.push(priorityCategories[0]);
     }
-    
+
     // Add Continue Watching (only on 'all' tab and if items exist)
     if (continueWatchingItems.length > 0 && type === 'all') {
       categoriesWithSpecialSections.push({
@@ -225,7 +241,7 @@ export const fetchContent = async (type: MediaType) => {
         loading: false,
       });
     }
-    
+
     // Add My List (only on 'all' tab and if items exist)
     if (myListItems.length > 0 && type === 'all') {
       categoriesWithSpecialSections.push({
@@ -234,7 +250,7 @@ export const fetchContent = async (type: MediaType) => {
         loading: false,
       });
     }
-    
+
     // Add rest of priority categories
     categoriesWithSpecialSections.push(...priorityCategories.slice(1));
 
@@ -250,7 +266,7 @@ export const fetchContent = async (type: MediaType) => {
       categories: [...categoriesWithSpecialSections, ...lazyPlaceholders],
     };
   } catch (error: unknown) {
-    console.error('❌ ERROR LOADING CONTENT:');
+    console.error('❌ ERROR LOADING CONTENT:', error);
     if (axios.isAxiosError(error)) {
       console.error('Axios error details:');
       console.error('  Status:', error.response?.status);
