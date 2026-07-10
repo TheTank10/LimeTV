@@ -73,19 +73,19 @@ const hexToRgba = (hex: string, opacity: number) => {
 };
 
 export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { 
-    videoUrl, 
-    subtitles = [], 
-    tmdbId, 
-    mediaType, 
-    season, 
+  const {
+    videoUrl,
+    subtitles = [],
+    tmdbId,
+    mediaType,
+    season,
     episode,
-    resumeTimestamp 
+    resumeTimestamp
   } = route.params;
 
   // Get user subtitle styling preferences
   const { styling } = useSubtitleStyling();
-  
+
   // Continue watching hook
   const { saveProgress } = useContinueWatching();
 
@@ -106,13 +106,13 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const isSeekingRef = useRef(false);
   const progressSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const player = useVideoPlayer(  
+  const player = useVideoPlayer(
     { uri: videoUrl, contentType: 'hls' },
-    (player) => {  
-      player.loop = false;  
-      player.timeUpdateEventInterval = 0.1;  
-      player.play();  
-    }  
+    (player) => {
+      player.loop = false;
+      player.timeUpdateEventInterval = 0.1;
+      player.play();
+    }
   );
 
   useLayoutEffect(() => {
@@ -180,7 +180,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     const unsubscribe = navigation.addListener("beforeRemove", async () => {
       // Save progress before leaving
       await handleSaveProgress();
-      
+
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       StatusBar.setHidden(false);
       if (Platform.OS === "android") {
@@ -217,13 +217,13 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       if (progressSaveTimer.current) {
         clearTimeout(progressSaveTimer.current);
       }
-      
+
       // Set new timer for 20 seconds
       progressSaveTimer.current = setTimeout(() => {
         handleSaveProgress();
       }, 20000);
     }
-    
+
     // Cleanup on unmount or when dependencies change
     return () => {
       if (progressSaveTimer.current) {
@@ -258,22 +258,22 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       loadSubtitleFile(subtitle.uri);
       return;
     }
-    
+
     if (!tmdbId || !mediaType) {
       console.error('Missing TMDB metadata for subtitle fetching');
       return;
     }
-    
+
     const currentState = subtitleStates[subtitle.language];
     let subtitleIndex = 0;
     if (currentState) {
       subtitleIndex = (currentState.currentIndex + 1) % currentState.totalAvailable;
     }
-    
+
     setLoadingSubtitle(true);
     setShowSubMenu(false);
     setControlsVisible(true);
-    
+
     try {
       const result = await getSubtitles(
         {
@@ -286,12 +286,12 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
         },
         subtitleIndex
       );
-      
+
       if (result.success && result.srtContent) {
         const cues = parseSRT(result.srtContent);
         setSubtitleCues(cues);
         setSelectedSubIndex(optionIndex);
-        
+
         setSubtitleStates(prev => ({
           ...prev,
           [subtitle.language]: {
@@ -299,7 +299,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
             totalAvailable: result.totalAvailable || 1,
           }
         }));
-        
+
         console.log(`Loaded subtitle ${(result.currentIndex || 0) + 1}/${result.totalAvailable || 1}: ${result.releaseName}`);
       } else {
         console.error('Failed to fetch subtitles:', result.error);
@@ -320,9 +320,9 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       const response = await fetch(uri);
       const contentType = response.headers.get('content-type') || '';
       const isGzipped = uri.endsWith('.gz') || contentType.includes('gzip');
-      
+
       let text: string;
-      
+
       if (isGzipped) {
         const arrayBuffer = await response.arrayBuffer();
         const pako = require('pako');
@@ -333,7 +333,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       } else {
         text = await response.text();
       }
-      
+
       const cues = parseSRT(text);
       setSubtitleCues(cues);
     } catch (error) {
@@ -544,12 +544,12 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
               const optionIndex = index - 1;
               const isSelected = selectedSubIndex === optionIndex;
               const state = subtitleStates[item.language];
-              
+
               let displayTitle = item.title;
               if (isSelected && state && state.totalAvailable > 1) {
                 displayTitle = `${item.title} (${state.currentIndex + 1}/${state.totalAvailable})`;
               }
-              
+
               return (
                 <TouchableOpacity
                   key={index}
@@ -572,7 +572,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
                 </TouchableOpacity>
               );
             })}
-            
+
             {selectedSubIndex !== -1 && (
               <View style={styles.offsetContainer}>
                 <View style={styles.offsetHeader}>
@@ -688,12 +688,12 @@ const parseSRTTimestamp = (timestamp: string): number => {
     let hours = 0, minutes = 0, seconds = 0;
 
     if (parts.length === 3) {
-      hours   = parseInt(parts[0], 10) || 0;
+      hours = parseInt(parts[0], 10) || 0;
       minutes = parseInt(parts[1], 10) || 0;
-      seconds = parseFloat(parts[2])   || 0;
+      seconds = parseFloat(parts[2]) || 0;
     } else if (parts.length === 2) {
       minutes = parseInt(parts[0], 10) || 0;
-      seconds = parseFloat(parts[1])   || 0;
+      seconds = parseFloat(parts[1]) || 0;
     }
 
     return hours * 3600 + minutes * 60 + seconds;

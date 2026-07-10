@@ -98,7 +98,7 @@ const getFebBoxHeaders = async (token: string, referer: string) => {
   const FAKE_G_STATE = '{"i_l":0,"i_ll":9999999999999,"i_b":"AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKK","i_e":{"enable_itp_optimization":1}}';
   const OSS_GROUP = await getSelectedServer();
   const cookieString = `g_state=${FAKE_G_STATE}; ui=${token}; oss_group=${OSS_GROUP}`;
-  
+
   return {
     'Cookie': cookieString,
     'x-requested-with': 'XMLHttpRequest',
@@ -120,7 +120,7 @@ const fetchWithTimeout = async (
 ): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -149,13 +149,13 @@ class ShowBoxAPI {
   private encrypt(data: string): string {
     const keyBytes = CryptoJS.enc.Utf8.parse(this.key);
     const ivBytes = CryptoJS.enc.Utf8.parse(this.iv);
-    
+
     const encrypted = CryptoJS.TripleDES.encrypt(data, keyBytes, {
       iv: ivBytes,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7
     });
-    
+
     return encrypted.toString();
   }
 
@@ -211,7 +211,7 @@ class ShowBoxAPI {
     };
 
     const encryptedData = this.encrypt(JSON.stringify(requestData));
-    
+
     const body = JSON.stringify({
       app_key: this.md5(this.appKey),
       verify: this.generateVerify(encryptedData),
@@ -254,7 +254,7 @@ class ShowBoxAPI {
         keyword,
         pagelimit: 20,
       }) as ShowBoxSearchResponse;
-      
+
       return result?.data || [];
     } catch (error) {
       console.error('[ShowBox API] Search error:', error);
@@ -270,9 +270,9 @@ const getFebBoxShareKey = async (
   try {
     // Use FebBox's direct endpoint
     const url = `https://www.febbox.com/mbp/to_share_page?box_type=${boxType}&mid=${showboxMediaId}&json=1`;
-    
+
     console.log('[FebBox] Getting share key from /mbp/to_share_page');
-    
+
     const response = await fetchWithTimeout(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -286,10 +286,10 @@ const getFebBoxShareKey = async (
     }
 
     const data = await response.json();
-    
+
     // Expected response: {"code":1,"msg":"success","data":{"share_link":"https://www.febbox.com/share/Bp1Hw1MK"}}
     const shareLink = data?.data?.share_link || data?.data?.link;
-    
+
     if (!shareLink) {
       console.log('[FebBox] No share_link in response:', data);
       return null;
@@ -297,10 +297,10 @@ const getFebBoxShareKey = async (
 
     // Extract share key: https://www.febbox.com/share/Bp1Hw1MK -> Bp1Hw1MK
     const shareKey = shareLink.split('/').pop();
-    
+
     console.log('[FebBox] Got share key:', shareKey);
     return shareKey || null;
-    
+
   } catch (error) {
     console.error('[FebBox] Share key error:', error);
     return null;
@@ -316,20 +316,20 @@ const extractFidFromHtml = async (
 ): Promise<string | null> => {
   try {
     const htmlUrl = `https://www.febbox.com/share/${febboxShareKey}`;
-    
+
     const response = await fetch(htmlUrl, { headers });
     if (!response.ok) {
       throw new Error(`HTML fetch failed: ${response.status}`);
     }
-    
+
     const html = await response.text();
-    
+
     const patterns = [
       /class="[^"]*play_video[^"]*"\s+data-id="(\d+)"/,
       /class="details"\s+data-id="(\d+)"/,
       /data-id="(\d+)"/
     ];
-    
+
     for (const pattern of patterns) {
       const match = html.match(pattern);
       if (match) {
@@ -337,7 +337,7 @@ const extractFidFromHtml = async (
         return match[1];
       }
     }
-    
+
     return null;
   } catch (error) {
     console.error('[FebBox Direct] FID extraction error:', error);
@@ -352,13 +352,13 @@ const selectBestFile = (files: FebBoxFile[], is4KEnabled: boolean): FebBoxFile =
   // Filter out 3D files first
   const is3D = (file: FebBoxFile) => /\.3d\./i.test(file.file_name);
   const non3DFiles = files.filter(f => !is3D(f));
-  
+
   // If all files are 3D, fall back to original files (or throw error)
   const filesToConsider = non3DFiles.length > 0 ? non3DFiles : files;
-  
+
   if (is4KEnabled) {
     // 4K ON: select largest file (original logic)
-    return filesToConsider.reduce((largest, current) => 
+    return filesToConsider.reduce((largest, current) =>
       current.file_size_bytes > largest.file_size_bytes ? current : largest
     );
   }
@@ -371,7 +371,7 @@ const selectBestFile = (files: FebBoxFile[], is4KEnabled: boolean): FebBoxFile =
   const files1080p = filesToConsider.filter(has1080p);
   if (files1080p.length > 0) {
     console.log('[FebBox] 4K OFF: Selecting 1080p file');
-    return files1080p.reduce((largest, current) => 
+    return files1080p.reduce((largest, current) =>
       current.file_size_bytes > largest.file_size_bytes ? current : largest
     );
   }
@@ -383,14 +383,14 @@ const selectBestFile = (files: FebBoxFile[], is4KEnabled: boolean): FebBoxFile =
   if (files4K.length > 0 && nonFiles4K.length > 0) {
     // 4K exists but so do alternatives - pick largest non-4K
     console.log('[FebBox] 4K OFF: Avoiding 4K, selecting alternative');
-    return nonFiles4K.reduce((largest, current) => 
+    return nonFiles4K.reduce((largest, current) =>
       current.file_size_bytes > largest.file_size_bytes ? current : largest
     );
   }
 
   // No alternatives or no 4K detected - just return largest
   console.log('[FebBox] 4K OFF: No alternatives, selecting largest available');
-  return filesToConsider.reduce((largest, current) => 
+  return filesToConsider.reduce((largest, current) =>
     current.file_size_bytes > largest.file_size_bytes ? current : largest
   );
 };
@@ -413,7 +413,7 @@ export const getFebBoxStreamDirect = async (
     const is4KEnabledStr = await AsyncStorage.getItem(IS_4K_ENABLED_KEY);
     const is4KEnabled = is4KEnabledStr !== null ? JSON.parse(is4KEnabledStr) : true;
     console.log('[FebBox Direct] 4K Enabled:', is4KEnabled);
-    
+
     const stored = await AsyncStorage.getItem(TOKENS_STORAGE_KEY);
     if (!stored) {
       return { success: false, error: 'No FebBox tokens configured' };
@@ -448,29 +448,47 @@ export const getFebBoxStreamDirect = async (
     // Single file share
     if (fileList.length === 0) {
       const fid = await extractFidFromHtml(febboxShareKey, headers);
-      
+
       if (!fid) {
         return { success: false, error: 'Could not extract FID from single file share' };
       }
 
-      const mediaResponse = await fetch(
-        `https://www.febbox.com/console/video_quality_list?fid=${fid}`,
-        { headers }
-      );
-
-      if (!mediaResponse.ok) {
-        throw new Error(`Media URL fetch failed: ${mediaResponse.status}`);
+      let qualityHtml = '';
+      try {
+        console.log('[FebBox Direct] Attempting to fetch web_player config from /file/player...');
+        const playerResponse = await fetch('https://www.febbox.com/file/player', {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          },
+          body: `fid=${fid}&share_key=${febboxShareKey}`,
+        });
+        if (playerResponse.ok) {
+          qualityHtml = await playerResponse.text();
+        }
+      } catch (e) {
+        console.warn('[FebBox Direct] Failed to fetch /file/player HTML, falling back to quality list:', e);
       }
 
-      const mediaData: FebBoxMediaResponse = await mediaResponse.json();
-      const qualityHtml = mediaData.html;
+      if (!qualityHtml) {
+        const mediaResponse = await fetch(
+          `https://www.febbox.com/console/video_quality_list?fid=${fid}&share_key=${febboxShareKey}`,
+          { headers }
+        );
+        if (!mediaResponse.ok) {
+          throw new Error(`Media URL fetch failed: ${mediaResponse.status}`);
+        }
+        const mediaData: FebBoxMediaResponse = await mediaResponse.json();
+        qualityHtml = mediaData.html || '';
+      }
 
-      const hlsMatch = qualityHtml.match(/data-url="(https?:\/\/[^"]*(?:hls|\.m3u8)[^"]*)"/);
-      
-      if (hlsMatch) {
-        let hlsUrl = hlsMatch[1];
+      // 1. Try extracting the web_player HLS master URL (highly resilient regex - matches any HLS URL containing KEY7=web_player inside quotes)
+      const webPlayerMatch = qualityHtml.match(/['"](https?:\/\/[^'"]*(?:hls|\.m3u8)[^'"]*KEY7=web_player[^'"]*)['"]/i);
+      if (webPlayerMatch) {
+
+        let hlsUrl = webPlayerMatch[1];
         hlsUrl = hlsUrl.replace(/&quality=[^&]+/, '');
-
         return {
           success: true,
           streamUrl: hlsUrl,
@@ -481,14 +499,35 @@ export const getFebBoxStreamDirect = async (
         };
       }
 
+      // 2. Try ORG quality URL, but ONLY if it's an MP4 file (since iOS AVPlayer cannot decode MKV natively)
       const orgMatch = qualityHtml.match(/data-url="([^"]+)"[^>]*data-quality="ORG"/);
-      
       if (orgMatch) {
+        const orgUrl = orgMatch[1];
+        const isMp4 = orgUrl.toLowerCase().includes('.mp4') || !orgUrl.toLowerCase().includes('.mkv');
+        if (isMp4) {
+
+          return {
+            success: true,
+            streamUrl: orgUrl,
+            streamType: 'mp4',
+            quality: 'Original',
+            size: 'Unknown',
+            shareKey: febboxShareKey,
+          };
+        }
+      }
+
+      // 3. Fallback: Standard HTML HLS adaptive (uses KEY7=febbox_video_quality_list_v4, might fail with 403 on some networks/IPs)
+      const hlsMatch = qualityHtml.match(/data-url="(https?:\/\/[^"]*(?:hls|\.m3u8)[^"]*)"/);
+      if (hlsMatch) {
+        let hlsUrl = hlsMatch[1];
+        hlsUrl = hlsUrl.replace(/&quality=[^&]+/, '');
+
         return {
           success: true,
-          streamUrl: orgMatch[1],
-          streamType: 'mp4',
-          quality: 'Original',
+          streamUrl: hlsUrl,
+          streamType: 'hls',
+          quality: 'Master (Adaptive)',
           size: 'Unknown',
           shareKey: febboxShareKey,
         };
@@ -563,7 +602,7 @@ export const getFebBoxStreamDirect = async (
     } else {
       // Movie
       const videoFiles = fileList.filter(f => f.is_dir !== 1);
-      
+
       if (videoFiles.length === 0) {
         return { success: false, error: 'No video files found' };
       }
@@ -578,24 +617,45 @@ export const getFebBoxStreamDirect = async (
     }
 
     // Get media URL
-    const mediaResponse = await fetch(
-      `https://www.febbox.com/console/video_quality_list?fid=${targetFile.fid}`,
-      { headers }
-    );
-
-    if (!mediaResponse.ok) {
-      throw new Error(`Media URL fetch failed: ${mediaResponse.status}`);
+    let qualityHtml = '';
+    try {
+      console.log('[FebBox Direct] Attempting to fetch web_player config from /file/player...');
+      const playerResponse = await fetch('https://www.febbox.com/file/player', {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        },
+        body: `fid=${targetFile.fid}&share_key=${febboxShareKey}`,
+      });
+      if (playerResponse.ok) {
+        qualityHtml = await playerResponse.text();
+      }
+    } catch (e) {
+      console.warn('[FebBox Direct] Failed to fetch /file/player HTML, falling back to quality list:', e);
     }
 
-    const mediaData: FebBoxMediaResponse = await mediaResponse.json();
-    const qualityHtml = mediaData.html;
+    if (!qualityHtml) {
+      const mediaResponse = await fetch(
+        `https://www.febbox.com/console/video_quality_list?fid=${targetFile.fid}&share_key=${febboxShareKey}`,
+        { headers }
+      );
+      if (!mediaResponse.ok) {
+        throw new Error(`Media URL fetch failed: ${mediaResponse.status}`);
+      }
+      const mediaData: FebBoxMediaResponse = await mediaResponse.json();
+      qualityHtml = mediaData.html || '';
+    }
 
-    const hlsMatch = qualityHtml.match(/data-url="(https?:\/\/[^"]*(?:hls|\.m3u8)[^"]*)"/);
-    
-    if (hlsMatch) {
-      let hlsUrl = hlsMatch[1];
+
+
+
+    // 1. Try extracting the web_player HLS master URL (highly resilient regex - matches any HLS URL containing KEY7=web_player inside quotes)
+    const webPlayerMatch = qualityHtml.match(/['"](https?:\/\/[^'"]*(?:hls|\.m3u8)[^'"]*KEY7=web_player[^'"]*)['"]/i);
+    if (webPlayerMatch) {
+
+      let hlsUrl = webPlayerMatch[1];
       hlsUrl = hlsUrl.replace(/&quality=[^&]+/, '');
-
       return {
         success: true,
         streamUrl: hlsUrl,
@@ -606,14 +666,35 @@ export const getFebBoxStreamDirect = async (
       };
     }
 
+    // 2. Try ORG quality URL, but ONLY if it's an MP4 file (since iOS AVPlayer cannot decode MKV natively)
     const orgMatch = qualityHtml.match(/data-url="([^"]+)"[^>]*data-quality="ORG"/);
-    
     if (orgMatch) {
+      const orgUrl = orgMatch[1];
+      const isMp4 = orgUrl.toLowerCase().includes('.mp4') || !orgUrl.toLowerCase().includes('.mkv');
+      if (isMp4) {
+
+        return {
+          success: true,
+          streamUrl: orgUrl,
+          streamType: 'mp4',
+          quality: 'Original',
+          size: targetFile.file_size,
+          shareKey: febboxShareKey,
+        };
+      }
+    }
+
+    // 3. Fallback: Standard HTML HLS adaptive (uses KEY7=febbox_video_quality_list_v4, might fail with 403 on some networks/IPs)
+    const hlsMatch = qualityHtml.match(/data-url="(https?:\/\/[^"]*(?:hls|\.m3u8)[^"]*)"/);
+    if (hlsMatch) {
+      let hlsUrl = hlsMatch[1];
+      hlsUrl = hlsUrl.replace(/&quality=[^&]+/, '');
+
       return {
         success: true,
-        streamUrl: orgMatch[1],
-        streamType: 'mp4',
-        quality: 'Original',
+        streamUrl: hlsUrl,
+        streamType: 'hls',
+        quality: 'Master (Adaptive)',
         size: targetFile.file_size,
         shareKey: febboxShareKey,
       };
@@ -642,7 +723,7 @@ const getFebBoxStreamViaShowBox = async (
 ): Promise<FebBoxStreamResult> => {
   try {
     console.log('[ShowBox API] Starting for TMDB:', tmdbId);
-    
+
     // 1. Convert TMDB → IMDB
     const imdbId = await getImdbId(Number(tmdbId), type);
     if (!imdbId) {
@@ -654,7 +735,7 @@ const getFebBoxStreamViaShowBox = async (
     // 2. Search ShowBox encrypted API with IMDB ID
     const api = new ShowBoxAPI();
     const searchResults = await api.search(imdbId, type === 'movie' ? 'movie' : 'all');
-    
+
     if (!searchResults || searchResults.length === 0) {
       console.log('[ShowBox API] No results found');
       return { success: false, error: 'No results from ShowBox API' };
@@ -668,7 +749,7 @@ const getFebBoxStreamViaShowBox = async (
 
     // 3. Get FebBox share key using /mbp/to_share_page
     const shareKey = await getFebBoxShareKey(showboxMediaId, boxType);
-    
+
     if (!shareKey) {
       return { success: false, error: 'Could not get FebBox share key' };
     }
@@ -677,11 +758,11 @@ const getFebBoxStreamViaShowBox = async (
 
     // 4. Use direct FebBox API with share key
     const streamResult = await getFebBoxStreamDirect(shareKey, type, season, episode);
-    
+
     if (streamResult.success) {
       console.log('[ShowBox API] SUCCESS via ShowBox encrypted API!');
     }
-    
+
     return streamResult;
 
   } catch (error) {
@@ -767,10 +848,10 @@ const getFebBoxStreamViaNuvio = async (
         for (const version of data.versions) {
           for (const link of version.links || []) {
             if (!link.url) continue;
-            
+
             const url = link.url.toLowerCase();
             const streamType = url.includes('.m3u8') ? 'hls' : url.includes('.mp4') ? 'mp4' : 'other';
-            
+
             allStreams.push({
               url: link.url,
               quality: link.quality || 'Unknown',
@@ -915,32 +996,32 @@ export const getFebBoxStream = async (
 
   console.log('\n[Method 1] Trying ShowBox encrypted API...');
   const showboxResult = await getFebBoxStreamViaShowBox(tmdbId, type, season, episode);
-  
+
   if (showboxResult.success) {
     console.log('ShowBox API success!\n');
     return showboxResult;
   }
-  
+
   console.log('ShowBox API failed:', showboxResult.error);
 
   console.log('\n[Method 2] Trying Nuvio API...');
   const nuvioResult = await getFebBoxStreamViaNuvio(tmdbId, type, season, episode);
-  
+
   if (nuvioResult.success) {
     console.log('Nuvio API success!\n');
     return nuvioResult;
   }
-  
+
   console.log('Nuvio API failed:', nuvioResult.error);
 
   console.log('\n[Method 3] Trying Aether API (last resort)...');
   const aetherResult = await getFebBoxStreamViaAether(tmdbId, type, season, episode);
-  
+
   if (aetherResult.success) {
     console.log('Aether API success!\n');
     return aetherResult;
   }
-  
+
   console.log('All methods failed\n');
   return { success: false, error: 'All streaming methods failed' };
 };
@@ -960,7 +1041,7 @@ export const validateFebBoxToken = async (
     const FAKE_G_STATE = '{"i_l":0,"i_ll":9999999999999,"i_b":"AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKK","i_e":{"enable_itp_optimization":1}}';
     const OSS_GROUP = await getSelectedServer();
     const cookieString = `g_state=${FAKE_G_STATE}; ui=${uiToken}; oss_group=${OSS_GROUP}`;
-    
+
     const headers = {
       'Accept': 'application/json, text/javascript, */*; q=0.01',
       'Accept-Language': 'en-US,en;q=0.9',
@@ -970,7 +1051,7 @@ export const validateFebBoxToken = async (
       'Origin': 'https://www.febbox.com',
       'x-requested-with': 'XMLHttpRequest',
     };
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: headers,
@@ -992,9 +1073,9 @@ export const validateFebBoxToken = async (
 
     return { isValid: false, error: result.msg || 'Invalid response' };
   } catch (error) {
-    return { 
-      isValid: false, 
-      error: 'Request failed: ' + (error instanceof Error ? error.message : 'Unknown error') 
+    return {
+      isValid: false,
+      error: 'Request failed: ' + (error instanceof Error ? error.message : 'Unknown error')
     };
   }
 };
