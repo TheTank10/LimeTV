@@ -647,9 +647,6 @@ export const getFebBoxStreamDirect = async (
       qualityHtml = mediaData.html || '';
     }
 
-
-
-
     // 1. Try extracting the web_player HLS master URL (highly resilient regex - matches any HLS URL containing KEY7=web_player inside quotes)
     const webPlayerMatch = qualityHtml.match(/['"](https?:\/\/[^'"]*(?:hls|\.m3u8)[^'"]*KEY7=web_player[^'"]*)['"]/i);
     if (webPlayerMatch) {

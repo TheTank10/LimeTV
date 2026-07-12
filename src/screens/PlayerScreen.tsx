@@ -24,6 +24,7 @@ import { Audio } from 'expo-av';
 
 import { getSubtitles } from '../services/opensubtitles';
 import { useSubtitleStyling, useContinueWatching } from '../hooks';
+import { createCastSession, generatePinCode } from '../services/cast';
 
 interface SubtitleOption {
   title: string;
@@ -75,6 +76,7 @@ const hexToRgba = (hex: string, opacity: number) => {
 export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const {
     videoUrl,
+    title = 'LimeTV',
     subtitles = [],
     tmdbId,
     mediaType,
@@ -101,6 +103,11 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loadingSubtitle, setLoadingSubtitle] = useState(false);
   const [subtitleOffset, setSubtitleOffset] = useState(0);
   const [subtitleStates, setSubtitleStates] = useState<{ [languageCode: string]: SubtitleState }>({});
+  
+  // Cast to PC states
+  const [castPin, setCastPin] = useState<string | null>(null);
+  const [isCasting, setIsCasting] = useState(false);
+  const [showCastModal, setShowCastModal] = useState(false);
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
   const isSeekingRef = useRef(false);
@@ -406,6 +413,42 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     }, 200);
   };
 
+  const handleCastToPC = async () => {
+    // Pause mobile playback
+    player.pause();
+    setIsPlaying(false);
+    
+    // Generate PIN code
+    const pin = generatePinCode();
+    setCastPin(pin);
+    setIsCasting(true);
+    setShowCastModal(true);
+    
+    // Determine active subtitle language
+    let subLangCode = 'off';
+    if (selectedSubIndex >= 0 && subtitles[selectedSubIndex]) {
+      subLangCode = subtitles[selectedSubIndex].language;
+    }
+    
+    const success = await createCastSession(pin, {
+      videoUrl,
+      title,
+      currentTime,
+      tmdbId,
+      mediaType,
+      season,
+      episode,
+      selectedSubLanguage: subLangCode,
+    });
+    
+    setIsCasting(false);
+    if (!success) {
+      alert('Failed to connect to casting server. Check your connection.');
+      setShowCastModal(false);
+      setCastPin(null);
+    }
+  };
+
   const handleExit = async () => {
     // Save progress before exiting
     await handleSaveProgress();
@@ -473,6 +516,13 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.ccText}>CC</Text>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={[styles.castButton, subtitles.length > 0 ? { right: 70 } : { right: 16 }]}
+            onPress={handleCastToPC}
+          >
+            <Text style={styles.castText}>PC</Text>
+          </TouchableOpacity>
         </>
       )}
 
@@ -600,6 +650,43 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
               </View>
             )}
           </ScrollView>
+        </View>
+      )}
+      {showCastModal && (
+        <View style={styles.castModalContainer}>
+          <View style={styles.castModal}>
+            <Text style={styles.castModalTitle}>Watch on PC</Text>
+            <Text style={styles.castModalDesc}>
+              Cast this movie/show to your computer browser.
+            </Text>
+            
+            {isCasting ? (
+              <ActivityIndicator size="large" color="#a3e635" style={{ marginVertical: 20 }} />
+            ) : (
+              <View style={styles.castPinContainer}>
+                <Text style={styles.castPinText}>{castPin}</Text>
+              </View>
+            )}
+
+            <Text style={styles.castInstructions}>
+              1. On your PC, open your browser{"\n"}
+              2. Go to: <Text style={{ color: "#a3e635", fontWeight: "bold" }}>limetv.github.io</Text>{"\n"}
+              3. Enter the 4-digit code above
+            </Text>
+
+            <TouchableOpacity
+              style={styles.castCloseButton}
+              onPress={() => {
+                setShowCastModal(false);
+                setCastPin(null);
+                // Resume playing locally if desired or keep paused
+                player.play();
+                setIsPlaying(true);
+              }}
+            >
+              <Text style={styles.castCloseButtonText}>Close & Play Here</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -748,6 +835,93 @@ const styles = StyleSheet.create({
   ccText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "600",
+  },
+  castButton: {
+    position: "absolute",
+    top: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    zIndex: 10,
+  },
+  castText: {
+    color: "#a3e635",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  castModalContainer: {
+    position: "absolute",
+    inset: 0,
+    backgroundColor: "rgba(8,10,14,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    padding: 24,
+  },
+  castModal: {
+    backgroundColor: "#0f1117",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    width: "80%",
+    maxWidth: 420,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  castModalTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  castModalDesc: {
+    color: "#6b7280",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  castPinContainer: {
+    backgroundColor: "#181c25",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    borderRadius: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    marginBottom: 20,
+  },
+  castPinText: {
+    color: "#a3e635",
+    fontSize: 32,
+    fontWeight: "700",
+    letterSpacing: 6,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
+  castInstructions: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  castCloseButton: {
+    marginTop: 24,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  castCloseButtonText: {
+    color: "#fff",
+    fontSize: 13,
     fontWeight: "600",
   },
   centerControls: {
