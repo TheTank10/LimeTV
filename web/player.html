@@ -27,7 +27,6 @@
       overflow: hidden;
     }
 
-    /* ── SIMPLE ENTRY SCREEN ── */
     #entry-screen {
       display: flex;
       align-items: center;
@@ -81,7 +80,6 @@
       min-height: 16px;
     }
 
-    /* ── LOADING ── */
     #loading-screen {
       display: none;
       flex-direction: column;
@@ -100,7 +98,6 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading-text { font-size: 14px; color: var(--muted); }
 
-    /* ── PLAYER SCREEN ── */
     #player-screen {
       display: none;
       position: relative;
@@ -203,7 +200,6 @@
       white-space: pre-line;
     }
 
-    /* Subtitle panel */
     #sub-panel {
       position: absolute; bottom: 70px; right: 24px;
       background: rgba(28,28,30,0.97);
@@ -234,13 +230,11 @@
       padding: 1px 7px; border-radius: 10px; letter-spacing: 0.3px; flex-shrink: 0;
     }
 
-    /* SVG UI icon fallback styling in case images fail */
     .btn-svg { width: 22px; height: 22px; fill: #fff; }
   </style>
 </head>
 <body>
 
-<!-- ── SIMPLE ENTRY SCREEN ── -->
 <div id="entry-screen">
   <div class="entry-card">
     <h1>Enter Code</h1>
@@ -249,13 +243,11 @@
   </div>
 </div>
 
-<!-- ── LOADING SCREEN ── -->
 <div id="loading-screen">
   <div class="spinner"></div>
   <p class="loading-text" id="loading-text">Connecting…</p>
 </div>
 
-<!-- ── PLAYER SCREEN ── -->
 <div id="player-screen">
   <video id="video" preload="auto"></video>
 
@@ -273,17 +265,13 @@
       </div>
 
       <div class="btn-row">
-        <!-- Rewind 10s -->
         <button class="ctrl-btn" id="rewind-btn" title="Rewind 10s">
           <img src="https://raw.githubusercontent.com/TheTank10/LimeTV/main/assets/rewind.png" alt="Rewind" onerror="this.outerHTML='<svg class=\'btn-svg\' viewBox=\'0 0 24 24\'><path d=\'M12.5 3a9 9 0 1 0 6.16 15.55l-1.42-1.42A7 7 0 1 1 12.5 5V3z\'/></svg>'" />
         </button>
-
-        <!-- Play/Pause -->
         <button class="ctrl-btn large" id="play-btn" title="Play/Pause">
           <img id="play-icon" src="https://raw.githubusercontent.com/TheTank10/LimeTV/main/assets/pause.png" alt="Pause" />
         </button>
 
-        <!-- Skip 10s -->
         <button class="ctrl-btn" id="ff-btn" title="Forward 10s">
           <img src="https://raw.githubusercontent.com/TheTank10/LimeTV/main/assets/skip.png" alt="Skip" onerror="this.outerHTML='<svg class=\'btn-svg\' viewBox=\'0 0 24 24\'><path d=\'M11.5 3a9 9 0 1 1-6.16 15.55l1.42-1.42A7 7 0 1 0 11.5 5V3z\'/></svg>'" />
         </button>
@@ -291,7 +279,6 @@
         <span class="time-display" id="time-display">0:00 / 0:00</span>
         <div class="spacer"></div>
 
-        <!-- Volume -->
         <div class="volume-wrap">
           <button class="ctrl-btn" id="mute-btn" title="Mute">
             <svg class="btn-svg" id="vol-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
@@ -299,12 +286,9 @@
           <input type="range" id="volume-slider" min="0" max="1" step="0.02" value="1" />
         </div>
 
-        <!-- Subtitles -->
         <button class="ctrl-btn" id="sub-btn" title="Subtitles">
           <svg class="btn-svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h2v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H12v-2h8v2z"/></svg>
         </button>
-
-        <!-- Fullscreen -->
         <button class="ctrl-btn" id="fs-btn" title="Fullscreen">
           <svg class="btn-svg" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         </button>
@@ -326,12 +310,9 @@ let hls = null;
 let sessionData = null;
 let subtitleCues = [];
 let controlsTimer = null;
-// subtitle results per language: { lang: [result, ...] }
 let subtitleResults = {};
-// cycling index per language: { lang: number }
 let subtitleIndexes = {};
 
-// Map language codes to readable titles
 const LANG_MAP = {
   'en': 'English',
   'es': 'Spanish',
@@ -346,26 +327,23 @@ const LANG_MAP = {
   'ru': 'Russian',
 };
 
-// ── SCREENS ──────────────────────────────────────────────
 function showScreen(name) {
   document.getElementById('entry-screen').style.display   = name === 'entry'   ? 'flex' : 'none';
   document.getElementById('loading-screen').style.display = name === 'loading' ? 'flex' : 'none';
   document.getElementById('player-screen').style.display  = name === 'player'  ? 'block': 'none';
 }
 
-// ── ENTRY ─────────────────────────────────────────────────
 const codeInput = document.getElementById('code-input');
 const entryError = document.getElementById('entry-error');
 
 codeInput.addEventListener('input', () => {
   codeInput.value = codeInput.value.replace(/\D/g, '').slice(0, 4);
   entryError.textContent = '';
-  // Auto-submit as soon as 4 digits are entered
   if (codeInput.value.length === 4) submitCode();
 });
 codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitCode(); });
 
-let activeSessionCode = null; // track which code we loaded
+let activeSessionCode = null;
 
 async function submitCode() {
   const code = codeInput.value.trim();
@@ -380,7 +358,6 @@ async function submitCode() {
   }
 }
 
-// Auto-load from URL ?code=
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -392,7 +369,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ── FIREBASE ──────────────────────────────────────────────
 async function loadSession(code) {
   showScreen('loading');
   document.getElementById('loading-text').textContent = 'Fetching session…';
@@ -404,7 +380,6 @@ async function loadSession(code) {
   if (!data.streamUrl) throw new Error('Invalid session data.');
 
   sessionData = data;
-  // Delete after reading — one-time use
   try {
     await fetch(`${FIREBASE_URL}/sessions/${code}.json`, { method: 'DELETE' });
   } catch (e) {
@@ -414,7 +389,6 @@ async function loadSession(code) {
   await initPlayer(data);
 }
 
-// ── PLAYER ────────────────────────────────────────────────
 async function initPlayer(data) {
   document.getElementById('loading-text').textContent = 'Loading stream…';
   showScreen('player');
@@ -448,7 +422,6 @@ async function initPlayer(data) {
   setupSubtitlePanel(data);
 }
 
-// ── CONTROLS ──────────────────────────────────────────────
 function setupControls(video) {
   const controls  = document.getElementById('controls');
   const playIcon  = document.getElementById('play-icon');
@@ -518,7 +491,6 @@ function setupControls(video) {
     showCtrl();
   });
 
-  // Keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     switch (e.key) {
@@ -572,15 +544,12 @@ function toggleFullscreen() {
   else document.exitFullscreen?.();
 }
 
-// ── SUBTITLES ─────────────────────────────────────────────
 function setupSubtitlePanel(data) {
   const list = document.getElementById('sub-list');
   list.innerHTML = '';
   
-  // Track active selection state locally
   let activeLang = data.subLang || 'off';
   
-  // Off option
   const offItem = document.createElement('div');
   offItem.className = 'sub-item' + (activeLang === 'off' ? ' active' : '');
   offItem.innerHTML = `<span class="check">✓</span><span>Off</span>`;
@@ -590,15 +559,12 @@ function setupSubtitlePanel(data) {
     document.getElementById('sub-panel').classList.remove('open');
     subtitleCues = [];
     document.getElementById('subtitle-text').textContent = '';
-    // Reset ALL cycle states so next language select starts fresh
     subtitleResults = {};
     subtitleIndexes = {};
-    // Remove all badges
     document.querySelectorAll('.sub-badge').forEach(b => b.remove());
   });
   list.appendChild(offItem);
 
-  // Render list of preferred subtitle languages passed from phone settings
   if (data.subLangs && Array.isArray(data.subLangs)) {
     data.subLangs.forEach(lang => {
       const item = document.createElement('div');
@@ -608,7 +574,7 @@ function setupSubtitlePanel(data) {
       const langName = LANG_MAP[lang] || lang.toUpperCase();
       item.innerHTML = `<span class="check">✓</span><span>${langName}</span>`;
       
-      let alreadyActive = isSelected; // whether this lang track is currently loaded
+      let alreadyActive = isSelected;
 
       item.addEventListener('click', async () => {
         const wasActive = item.classList.contains('active');
@@ -619,10 +585,8 @@ function setupSubtitlePanel(data) {
         if (!data.imdbId) return;
 
         if (wasActive && subtitleResults[lang] && subtitleResults[lang].length > 1) {
-          // Already active — cycle to the next subtitle track
           await cycleSubtitle(data.imdbId, lang, data.season, data.episode, item);
         } else {
-          // First selection or switching language — load from scratch
           const total = await loadSubtitles(data.imdbId, lang, data.season, data.episode, 0);
           if (total > 1) updateSubBadge(item, lang);
         }
@@ -631,9 +595,7 @@ function setupSubtitlePanel(data) {
     });
   }
 
-  // Auto-load subtitle track if a language was pre-selected when casting started
   if (activeLang !== 'off' && data.imdbId) {
-    // Find the item element for the active lang to attach badge
     loadSubtitles(data.imdbId, activeLang, data.season, data.episode, 0).then(total => {
       if (total > 1) {
         const items = list.querySelectorAll('.sub-item.active');
@@ -645,7 +607,6 @@ function setupSubtitlePanel(data) {
 
 async function loadSubtitles(imdbId, lang, season, episode, index = 0) {
   try {
-    // If we already have results for this lang, skip the fetch
     if (!subtitleResults[lang]) {
       const cleanId = imdbId.startsWith('tt') ? imdbId.slice(2) : imdbId;
       const parts = [];
@@ -667,7 +628,6 @@ async function loadSubtitles(imdbId, lang, season, episode, index = 0) {
     const allSubs = subtitleResults[lang];
     if (!allSubs || !allSubs.length) return 0;
 
-    // Clamp index
     const idx = Math.max(0, Math.min(index, allSubs.length - 1));
     subtitleIndexes[lang] = idx;
 
