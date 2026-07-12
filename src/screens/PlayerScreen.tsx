@@ -440,6 +440,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       season,
       episode,
       selectedSubLanguage: subLangCode,
+      subtitleStyling: styling,
     });
     
     setIsCasting(false);
@@ -671,7 +672,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
             <Text style={styles.castInstructions}>
               1. On your PC, open your browser{"\n"}
-              2. Go to: <Text style={{ color: "#a3e635", fontWeight: "bold" }}>limetv.github.io</Text>{"\n"}
+              2. Go to: <Text style={{ color: "#a3e635", fontWeight: "bold" }}>thetank10.github.io/LimeTV/player.html</Text>{"\n"}
               3. Enter the 4-digit code above
             </Text>
 

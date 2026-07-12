@@ -15,6 +15,7 @@ export interface CastSessionData {
   mediaType?: 'movie' | 'tv';
   season?: number;
   episode?: number;
+  subtitleStyling?: any;
 }
 
 /**
@@ -39,6 +40,7 @@ export async function createCastSession(
     season?: number;
     episode?: number;
     selectedSubLanguage?: string;
+    subtitleStyling?: any;
   }
 ): Promise<boolean> {
   try {
@@ -61,6 +63,7 @@ export async function createCastSession(
       mediaType: params.mediaType,
       season: params.season,
       episode: params.episode,
+      subtitleStyling: params.subtitleStyling,
     };
 
     const response = await axios.put(`${FIREBASE_URL}/sessions/${code}.json`, sessionPayload, {
