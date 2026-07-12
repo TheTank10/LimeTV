@@ -8,7 +8,9 @@ export interface CastSessionData {
   streamUrl: string;
   title: string;
   timestamp: number;
+  createdAt: number;
   subLang?: string;
+  subLangs?: string[]; // Available subtitle language codes
   imdbId?: string;
   mediaType?: 'movie' | 'tv';
   season?: number;
@@ -31,6 +33,7 @@ export async function createCastSession(
     videoUrl: string;
     title: string;
     currentTime: number;
+    subLangs?: string[];
     tmdbId?: number;
     mediaType?: 'movie' | 'tv';
     season?: number;
@@ -51,7 +54,9 @@ export async function createCastSession(
       streamUrl: params.videoUrl,
       title: params.title,
       timestamp: Math.floor(params.currentTime),
+      createdAt: Date.now(),
       subLang: params.selectedSubLanguage || 'off',
+      subLangs: params.subLangs,
       imdbId: imdbId || undefined,
       mediaType: params.mediaType,
       season: params.season,

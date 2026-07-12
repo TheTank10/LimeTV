@@ -434,6 +434,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       videoUrl,
       title,
       currentTime,
+      subLangs: subtitles.map(s => s.language),
       tmdbId,
       mediaType,
       season,
@@ -676,10 +677,18 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
             <TouchableOpacity
               style={styles.castCloseButton}
-              onPress={() => {
+              onPress={async () => {
+                // Clean up Firebase session so the DB doesn't grow forever
+                if (castPin) {
+                  try {
+                    await fetch(
+                      `https://limetv-81936-default-rtdb.firebaseio.com/sessions/${castPin}.json`,
+                      { method: 'DELETE' }
+                    );
+                  } catch (_) {}
+                }
                 setShowCastModal(false);
                 setCastPin(null);
-                // Resume playing locally if desired or keep paused
                 player.play();
                 setIsPlaying(true);
               }}
@@ -847,7 +856,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   castText: {
-    color: "#a3e635",
+    color: "#fff",
     fontSize: 14,
     fontWeight: "600",
   },
