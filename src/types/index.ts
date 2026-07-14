@@ -28,7 +28,12 @@ export type MediaType = 'all' | 'movie' | 'tv';
 export type RootStackParamList = {
   Home: undefined;
   Detail: {
-    item: Movie;
+    // In-app navigation passes the full item object
+    item?: Movie;
+    // Deep link navigation passes raw params parsed from the URL
+    id?: number;
+    mediaType?: 'movie' | 'tv';
+    shareKey?: string;
   };
   Player: {
     videoUrl: string;

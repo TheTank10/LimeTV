@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Alert, Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { SPACING, COLORS, FONT_SIZES, BORDER_RADIUS } from '../../constants';
@@ -11,6 +11,7 @@ interface DetailActionButtonsProps {
   itemId: number;
   title: string;
   mediaType: 'movie' | 'tv';
+  shareKey?: string;
 }
 
 interface StoredListItem {
@@ -27,7 +28,9 @@ const MY_LIST_KEY = '@limetv_my_list';
 export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({ 
   onPlay, 
   itemId,
+  title,
   mediaType,
+  shareKey,
 }) => {
   const [isInList, setIsInList] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,8 +103,25 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
     }
   };
 
-  const handleShare = () => {
-    Alert.alert('Share', 'Share functionality coming soon');
+  const handleShare = async () => {
+    try {
+      let url = `https://TheTank10.github.io/LimeTV/?id=${itemId}&type=${mediaType}`;
+
+      if (title) {
+        url += `&title=${encodeURIComponent(title)}`;
+      }
+
+      if (shareKey) {
+        url += `&shareKey=${encodeURIComponent(shareKey)}`;
+      }
+
+      await Share.share({
+        message: url,
+        url, // iOS uses this for proper link previews
+      });
+    } catch {
+      // Share dismissed or failed — silently ignore
+    }
   };
 
   // Format play button text based on continue watching data

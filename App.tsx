@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as Linking from 'expo-linking';
 
 import { HomeScreen } from './src/screens/HomeScreen';
 import { DetailScreen } from './src/screens/DetailScreen';
@@ -9,6 +10,23 @@ import { SettingsScreen } from './src/screens/SettingScreen';
 import { RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const linking = {
+  prefixes: ['limetv://', Linking.createURL('/')],
+  config: {
+    screens: {
+      Home: 'home',
+      Detail: {
+        path: 'detail',
+        parse: {
+          id: (id: string) => Number(id),
+        },
+      },
+      Player: 'player',
+      Settings: 'settings',
+    },
+  },
+};
 
 /**
  * Main App Component
@@ -23,7 +41,7 @@ export default function App() {
   return (
     <>
       <StatusBar style="light" />
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

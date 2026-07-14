@@ -40,17 +40,18 @@ import {
  * Displays comprehensive information including cast, episodes, trailers, and similar content
  */
 export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation }) => {
-  const { item } = route.params;
+  const { item, id: routeId, mediaType: routeMediaType, shareKey: incomingShareKey } = route.params;
 
-  const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
-  const displayTitle = item.title || item.name || 'Unknown Title';
+  // Support both in-app navigation (full item) and deep link navigation (id + mediaType)
+  const resolvedId = item?.id ?? routeId;
+  const mediaType = (item?.media_type ?? routeMediaType ?? (item?.title ? 'movie' : 'tv')) as 'movie' | 'tv';
   const isTVShow = mediaType === 'tv';
 
   // Track selected episode for TV shows
   const [selectedEpisode, setSelectedEpisode] = useState(1);
 
   // Load content details
-  const { details, loading, error, loadDetails } = useContentDetails(item.id, mediaType);
+  const { details, loading, error, loadDetails } = useContentDetails(resolvedId!, mediaType);
 
   // Load user subtitle preferences
   const { languages: subtitleLanguages } = useSubtitlePreferences();
@@ -67,28 +68,44 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     showSeasonPicker,
     setSelectedSeason,
     setShowSeasonPicker,
-  } = useSeasonData(item.id, isTVShow, !!details);
+  } = useSeasonData(resolvedId!, isTVShow, !!details);
 
   // Share key management
   const { shareKey, saveShareKey, updateShareKey, clearShareKey } = useShareKey({
-    itemId: item.id,
+    itemId: resolvedId!,
     mediaType,
     selectedSeason,
   });
 
   // Stream fetching
   const { fetchStream, loading: loadingStream } = useStreamFetcher({
-    itemId: item.id,
+    itemId: resolvedId!,
     mediaType,
     shareKey,
     onShareKeyUpdate: updateShareKey,
   });
 
+  // Silently auto-save an incoming shareKey from a deep link if the user doesn't have one
+  useEffect(() => {
+    if (incomingShareKey && !shareKey) {
+      saveShareKey(incomingShareKey);
+    }
+  // Only run once on mount — intentionally omitting shareKey from deps
+  // so we don't overwrite after the initial check
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingShareKey]);
+
+  // Derive display title — prefer fetched details over route params
+  const displayTitle =
+    details?.details
+      ? ('title' in details.details ? details.details.title : details.details.name) || item?.title || item?.name || 'Unknown Title'
+      : item?.title || item?.name || 'Loading...';
+
   // Get formatted data
   const year = getYear(details);
   const runtime = getRuntime(details);
   const genres = getGenres(details);
-  const rating = getRating(item.vote_average);
+  const rating = getRating(item?.vote_average ?? 0);
   const trailers = getTrailers(details);
   const similarContent = getSimilarContent(details);
   const topCast = details?.credits.cast.slice(0, 15) || [];
@@ -99,7 +116,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   useEffect(() => {
     const loadContinueWatching = async () => {
       try {
-        const progress = await getProgress(item.id);
+        const progress = await getProgress(resolvedId!);
         setContinueWatchingData(progress);
         
         // If TV show, update selected season/episode from continue watching
@@ -113,7 +130,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     };
 
     loadContinueWatching();
-  }, [item.id, getProgress, isTVShow, setSelectedSeason]);
+  }, [resolvedId, getProgress, isTVShow, setSelectedSeason]);
 
   /**
    * Get resume timestamp for current episode/movie
@@ -180,7 +197,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         language: lang.code,
         uri: '',
       })),
-      tmdbId: item.id,
+      tmdbId: resolvedId,
       mediaType,
       season: isTVShow ? selectedSeason : undefined,
       episode: isTVShow ? selectedEpisode : undefined,
@@ -218,7 +235,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         language: lang.code,
         uri: '', 
       })),
-      tmdbId: item.id,
+      tmdbId: resolvedId,
       mediaType,
       season: selectedSeason,
       episode: episodeNumber,
@@ -279,8 +296,8 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         {/* Hero Section with Backdrop */}
         <View>
           <DetailHeroBackdrop
-            backdropPath={item.backdrop_path}
-            posterPath={item.poster_path}
+            backdropPath={item?.backdrop_path ?? ''}
+            posterPath={item?.poster_path ?? ''}
             title={displayTitle}
             tagline={details.details.tagline}
             year={year}
@@ -293,9 +310,10 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         {/* Action Buttons */}
         <DetailActionButtons 
           onPlay={handlePlay}
-          itemId={item.id}
+          itemId={resolvedId!}
           title={displayTitle}
           mediaType={mediaType}
+          shareKey={shareKey}
         />
 
         {/* Overview */}

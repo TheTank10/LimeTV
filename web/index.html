@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title id="page-title">LimeTV</title>
+
+  <meta property="og:site_name" content="LimeTV" />
+  <meta property="og:type" content="website" />
+  <meta id="og-title" property="og:title" content="LimeTV" />
+  <meta id="og-description" property="og:description" content="Open in the LimeTV app to watch." />
+  <meta id="og-url" property="og:url" content="https://TheTank10.github.io/LimeTV/" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/TheTank10/LimeTV/main/assets/icon.png" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="1024" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta id="twitter-title" name="twitter:title" content="LimeTV" />
+  <meta id="twitter-description" name="twitter:description" content="Open in the LimeTV app to watch." />
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/TheTank10/LimeTV/main/assets/icon.png" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #080a0e;
+      color: #f0f4ff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var id       = params.get('id');
+      var type     = params.get('type') || 'movie';
+      var title    = params.get('title');
+      var shareKey = params.get('shareKey');
+
+      if (title) {
+        var decoded = decodeURIComponent(title);
+        document.getElementById('page-title').textContent   = decoded + ' — LimeTV';
+        document.getElementById('og-title').content         = decoded + ' — LimeTV';
+        document.getElementById('twitter-title').content    = decoded + ' — LimeTV';
+        document.getElementById('og-description').content   = 'Open in LimeTV to watch ' + decoded + '.';
+        document.getElementById('twitter-description').content = 'Open in LimeTV to watch ' + decoded + '.';
+      }
+
+      if (!id) {
+        return;
+      }
+
+      var deepLink = 'limetv://detail?id=' + encodeURIComponent(id)
+                   + '&type=' + encodeURIComponent(type);
+
+      if (title) {
+        deepLink += '&title=' + encodeURIComponent(title);
+      }
+
+      if (shareKey) {
+        deepLink += '&shareKey=' + encodeURIComponent(shareKey);
+      }
+
+      window.location.replace(deepLink);
+    })();
+  </script>
+</body>
+</html>
