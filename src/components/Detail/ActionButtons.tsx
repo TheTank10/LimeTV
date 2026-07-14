@@ -10,6 +10,13 @@ interface DetailActionButtonsProps {
   onPlay: () => void;
   itemId: number;
   title: string;
+  mediaType: 'movie' | 'tv';
+}
+
+interface StoredListItem {
+  id: number;
+  type?: 'movie' | 'tv';
+  mediaType?: 'movie' | 'tv';
 }
 
 const MY_LIST_KEY = '@limetv_my_list';
@@ -20,6 +27,7 @@ const MY_LIST_KEY = '@limetv_my_list';
 export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({ 
   onPlay, 
   itemId,
+  mediaType,
 }) => {
   const [isInList, setIsInList] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -31,13 +39,19 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
     try {
       const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
       if (myListJson) {
-        const myList = JSON.parse(myListJson);
-        setIsInList(myList.includes(itemId));
+        const myList = JSON.parse(myListJson) as Array<number | StoredListItem>;
+        const inList = myList.some((item) => {
+          if (typeof item === 'object' && item !== null) {
+            return item.id === itemId && (item.type === mediaType || item.mediaType === mediaType);
+          }
+          return item === itemId;
+        });
+        setIsInList(inList);
       }
     } catch (error) {
       console.error('Error checking list:', error);
     }
-  }, [itemId]);
+  }, [itemId, mediaType]);
 
   const checkContinueWatching = useCallback(async () => {
     try {
@@ -57,15 +71,22 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
     try {
       setLoading(true);
       const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
-      let myList: number[] = myListJson ? JSON.parse(myListJson) : [];
+      let myList = (myListJson ? JSON.parse(myListJson) : []) as Array<number | StoredListItem>;
 
       if (isInList) {
         // Remove from list
-        myList = myList.filter(id => id !== itemId);
+        myList = myList.filter((item) => {
+          if (typeof item === 'object' && item !== null) {
+            const matchesId = item.id === itemId;
+            const matchesType = item.type === mediaType || item.mediaType === mediaType;
+            return !(matchesId && matchesType);
+          }
+          return item !== itemId;
+        });
         setIsInList(false);
       } else {
-        // Add to list
-        myList.push(itemId);
+        // Add to list with type
+        myList.push({ id: itemId, type: mediaType });
         setIsInList(true);
       }
 

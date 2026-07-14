@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+import { SubtitleStyling } from '../hooks/Shared/useSubtitleStyling';
+
 import { getImdbId } from './tmdb';
 
 const FIREBASE_URL = 'https://limetv-81936-default-rtdb.firebaseio.com';
@@ -15,7 +17,7 @@ export interface CastSessionData {
   mediaType?: 'movie' | 'tv';
   season?: number;
   episode?: number;
-  subtitleStyling?: any;
+  subtitleStyling?: SubtitleStyling;
 }
 
 /**
@@ -40,7 +42,7 @@ export async function createCastSession(
     season?: number;
     episode?: number;
     selectedSubLanguage?: string;
-    subtitleStyling?: any;
+    subtitleStyling?: SubtitleStyling;
   }
 ): Promise<boolean> {
   try {

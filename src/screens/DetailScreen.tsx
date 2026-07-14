@@ -295,6 +295,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
           onPlay={handlePlay}
           itemId={item.id}
           title={displayTitle}
+          mediaType={mediaType}
         />
 
         {/* Overview */}

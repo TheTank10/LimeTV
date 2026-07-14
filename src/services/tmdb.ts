@@ -88,6 +88,12 @@ const findBestHeroItem = (items: TMDBRawItem[] | undefined | null): Movie | null
   };
 };
 
+interface StoredListItem {
+  id: number;
+  type?: 'movie' | 'tv';
+  mediaType?: 'movie' | 'tv';
+}
+
 /**
  * Fetch My List items from AsyncStorage
  */
@@ -96,20 +102,52 @@ const fetchMyList = async (): Promise<Movie[]> => {
     const myListJson = await AsyncStorage.getItem(MY_LIST_KEY);
     if (!myListJson) return [];
 
-    const savedIds: number[] = JSON.parse(myListJson);
-    if (savedIds.length === 0) return [];
+    const savedItems = JSON.parse(myListJson) as Array<number | StoredListItem>;
+    if (savedItems.length === 0) return [];
 
     // Fetch details for each saved item
-    const itemPromises = savedIds.map(async (id) => {
+    const itemPromises = savedItems.map(async (savedItem) => {
       try {
-        // Try movie first
-        const movieRes = await tmdbClient.get(`/movie/${id}`);
-        if (movieRes.data) {
-          return { ...movieRes.data, media_type: 'movie' as const };
+        let id: number;
+        let mediaType: 'movie' | 'tv';
+
+        if (typeof savedItem === 'object' && savedItem !== null) {
+          id = savedItem.id;
+          mediaType = savedItem.type || savedItem.mediaType || 'movie';
+        } else if (typeof savedItem === 'number') {
+          // Legacy format fallback: try movie first, then TV
+          id = savedItem;
+          try {
+            const movieRes = await tmdbClient.get(`/movie/${id}`);
+            if (movieRes.data) {
+              return { ...movieRes.data, media_type: 'movie' as const };
+            }
+          } catch {
+            try {
+              const tvRes = await tmdbClient.get(`/tv/${id}`);
+              if (tvRes.data) {
+                return {
+                  ...tvRes.data,
+                  title: tvRes.data.name,
+                  media_type: 'tv' as const
+                };
+              }
+            } catch {
+              return null;
+            }
+          }
+          return null;
+        } else {
+          return null;
         }
-      } catch {
-        // If movie fails, try TV
-        try {
+
+        // Fetch specifically using the known mediaType
+        if (mediaType === 'movie') {
+          const movieRes = await tmdbClient.get(`/movie/${id}`);
+          if (movieRes.data) {
+            return { ...movieRes.data, media_type: 'movie' as const };
+          }
+        } else {
           const tvRes = await tmdbClient.get(`/tv/${id}`);
           if (tvRes.data) {
             return {
@@ -118,9 +156,9 @@ const fetchMyList = async (): Promise<Movie[]> => {
               media_type: 'tv' as const
             };
           }
-        } catch {
-          return null;
         }
+      } catch {
+        return null;
       }
       return null;
     });

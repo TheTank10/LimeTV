@@ -526,10 +526,8 @@ function setupControls(video) {
     controls.classList.add('visible'); 
   });
 
-  // ── Progress bar – drag scrubbing ──────────────────────────────────────
   let isScrubbing = false;
 
-  // Tooltip element (created once, reused)
   const scrubTooltip = document.createElement('div');
   scrubTooltip.id = 'scrub-tooltip';
   Object.assign(scrubTooltip.style, {
@@ -603,7 +601,6 @@ function setupControls(video) {
   progWrap.addEventListener('touchstart', startScrub, { passive: false });
   progWrap.addEventListener('touchmove',  e => { if (isScrubbing) moveScrub(e); }, { passive: false });
   progWrap.addEventListener('touchend',   endScrub);
-  // ───────────────────────────────────────────────────────────────────────
 
   document.getElementById('sub-btn').addEventListener('click', e => {
     e.stopPropagation();
