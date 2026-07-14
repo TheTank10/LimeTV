@@ -51,7 +51,10 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate('Home');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
     }
   };
 

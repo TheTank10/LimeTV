@@ -14,6 +14,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const linking = {
   prefixes: ['limetv://', Linking.createURL('/')],
   config: {
+    initialRouteName: 'Home' as const,
     screens: {
       Home: 'home',
       Detail: {
