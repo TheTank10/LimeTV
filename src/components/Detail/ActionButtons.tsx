@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert, Share } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Alert, Share, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { SPACING, COLORS, FONT_SIZES, BORDER_RADIUS } from '../../constants';
@@ -115,10 +115,11 @@ export const DetailActionButtons: React.FC<DetailActionButtonsProps> = ({
         url += `&shareKey=${encodeURIComponent(shareKey)}`;
       }
 
-      await Share.share({
-        message: url,
-        url, // iOS uses this for proper link previews
-      });
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { url }
+          : { message: url }
+      );
     } catch {
       // Share dismissed or failed — silently ignore
     }

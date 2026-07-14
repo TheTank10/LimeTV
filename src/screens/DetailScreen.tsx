@@ -296,8 +296,8 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
         {/* Hero Section with Backdrop */}
         <View>
           <DetailHeroBackdrop
-            backdropPath={item?.backdrop_path ?? ''}
-            posterPath={item?.poster_path ?? ''}
+            backdropPath={details?.details?.backdrop_path ?? item?.backdrop_path ?? ''}
+            posterPath={details?.details?.poster_path ?? item?.poster_path ?? ''}
             title={displayTitle}
             tagline={details.details.tagline}
             year={year}
