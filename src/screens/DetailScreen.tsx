@@ -40,12 +40,20 @@ import {
  * Displays comprehensive information including cast, episodes, trailers, and similar content
  */
 export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation }) => {
-  const { item, id: routeId, mediaType: routeMediaType, shareKey: incomingShareKey } = route.params;
+  const { item, id: routeId, mediaType: routeMediaType, type: routeType, shareKey: incomingShareKey } = route.params;
 
   // Support both in-app navigation (full item) and deep link navigation (id + mediaType)
   const resolvedId = item?.id ?? routeId;
-  const mediaType = (item?.media_type ?? routeMediaType ?? (item?.title ? 'movie' : 'tv')) as 'movie' | 'tv';
+  const mediaType = (item?.media_type ?? routeMediaType ?? routeType ?? (item?.title ? 'movie' : 'tv')) as 'movie' | 'tv';
   const isTVShow = mediaType === 'tv';
+
+  const handleClose = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Home');
+    }
+  };
 
   // Track selected episode for TV shows
   const [selectedEpisode, setSelectedEpisode] = useState(1);
@@ -249,7 +257,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       <View style={styles.container}>
         <LinearGradient colors={COLORS.backgroundGradient} style={styles.gradient}>
           <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <DetailHeader onClose={() => navigation.goBack()} />
+            <DetailHeader onClose={handleClose} />
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={COLORS.text} />
             </View>
@@ -265,7 +273,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
       <View style={styles.container}>
         <LinearGradient colors={COLORS.backgroundGradient} style={styles.gradient}>
           <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <DetailHeader onClose={() => navigation.goBack()} />
+            <DetailHeader onClose={handleClose} />
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>Failed to load details</Text>
               <TouchableOpacity style={styles.retryButton} onPress={loadDetails}>
@@ -304,7 +312,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
             runtime={runtime}
             rating={rating}
           />
-          <DetailHeader onClose={() => navigation.goBack()} />
+          <DetailHeader onClose={handleClose} />
         </View>
 
         {/* Action Buttons */}

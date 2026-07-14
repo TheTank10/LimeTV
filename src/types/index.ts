@@ -33,6 +33,7 @@ export type RootStackParamList = {
     // Deep link navigation passes raw params parsed from the URL
     id?: number;
     mediaType?: 'movie' | 'tv';
+    type?: 'movie' | 'tv';
     shareKey?: string;
   };
   Player: {
