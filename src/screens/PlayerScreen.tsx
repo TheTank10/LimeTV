@@ -12,6 +12,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  AppState,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEvent } from "expo";
@@ -90,6 +91,22 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Continue watching hook
   const { saveProgress } = useContinueWatching();
+
+  // Helper function to save progress
+  const handleSaveProgress = async () => {
+    if (!tmdbId || !mediaType || duration === 0) {
+      return;
+    }
+
+    await saveProgress({
+      tmdbId,
+      mediaType,
+      timestamp: player.currentTime,
+      duration,
+      season,
+      episode,
+    });
+  };
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -184,18 +201,37 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove", async () => {
-      // Save progress before leaving
-      await handleSaveProgress();
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      // Prevent default behavior of leaving the screen immediately
+      e.preventDefault();
 
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      // Lock orientation, restore status bar, etc.
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       StatusBar.setHidden(false);
       if (Platform.OS === "android") {
-        await NavigationBar.setVisibilityAsync("visible");
+        NavigationBar.setVisibilityAsync("visible");
       }
+
+      // Save progress, then continue with the original navigation action
+      handleSaveProgress().finally(() => {
+        navigation.dispatch(e.data.action);
+      });
     });
     return unsubscribe;
-  }, [navigation, currentTime, duration, tmdbId, mediaType, season, episode]);
+  }, [navigation, duration, tmdbId, mediaType, season, episode]);
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: string) => {
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        await handleSaveProgress();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [duration, tmdbId, mediaType, season, episode]);
 
   useEffect(() => {
     if (controlsVisible && !isSeeking) {
@@ -219,42 +255,20 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Periodic progress saving (every 20 seconds while playing)
   useEffect(() => {
-    if (isPlaying && duration > 0 && tmdbId && mediaType) {
-      // Clear any existing timer
-      if (progressSaveTimer.current) {
-        clearTimeout(progressSaveTimer.current);
-      }
+    let intervalId: NodeJS.Timeout | null = null;
 
-      // Set new timer for 20 seconds
-      progressSaveTimer.current = setTimeout(() => {
+    if (isPlaying && duration > 0 && tmdbId && mediaType) {
+      intervalId = setInterval(() => {
         handleSaveProgress();
       }, 20000);
     }
 
-    // Cleanup on unmount or when dependencies change
     return () => {
-      if (progressSaveTimer.current) {
-        clearTimeout(progressSaveTimer.current);
-        progressSaveTimer.current = null;
+      if (intervalId) {
+        clearInterval(intervalId);
       }
     };
-  }, [isPlaying, currentTime, duration, tmdbId, mediaType, season, episode]);
-
-  // Helper function to save progress
-  const handleSaveProgress = async () => {
-    if (!tmdbId || !mediaType || duration === 0) {
-      return;
-    }
-
-    await saveProgress({
-      tmdbId,
-      mediaType,
-      timestamp: currentTime,
-      duration,
-      season,
-      episode,
-    });
-  };
+  }, [isPlaying, duration, tmdbId, mediaType, season, episode]);
 
   const loadSubtitle = async (subtitle: SubtitleOption, optionIndex: number) => {
     if (subtitle.uri) {
