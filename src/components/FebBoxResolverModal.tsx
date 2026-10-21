@@ -86,7 +86,12 @@ export const FebBoxResolverModal: React.FC = () => {
           document.cookie = "oss_group=" + "${currentTask.server}" + "; path=/; domain=.febbox.com; SameSite=None; Secure";
         } catch(e) {}
 
+        if (window.__isResolvingStream) return;
+
         async function fetchStreamData() {
+          if (window.__isResolvingStream) return;
+          window.__isResolvingStream = true;
+
           try {
             var targetFid = directFid;
 
@@ -99,7 +104,7 @@ export const FebBoxResolverModal: React.FC = () => {
 
               if (mediaType === 'tv' && season !== null) {
                 var seasonFolder = fileList.find(function(item) {
-                  if (item.is_dir !== 1) return false;
+                  if (String(item.is_dir) !== '1') return false;
                   var reg = new RegExp('season\\\\s*0*' + season + '\\\\b', 'i');
                   return reg.test(item.file_name);
                 });
@@ -110,7 +115,7 @@ export const FebBoxResolverModal: React.FC = () => {
                     if (pRes.ok) {
                       var pData = await pRes.json();
                       seasonFolder = (pData.data?.file_list || []).find(function(item) {
-                        if (item.is_dir !== 1) return false;
+                        if (String(item.is_dir) !== '1') return false;
                         var reg = new RegExp('season\\\\s*0*' + season + '\\\\b', 'i');
                         return reg.test(item.file_name);
                       });
@@ -124,7 +129,7 @@ export const FebBoxResolverModal: React.FC = () => {
                 var epRes = await fetch('/file/file_share_list?share_key=' + shareKey + '&pwd=&parent_id=' + seasonFolder.fid + '&is_html=0', { credentials: 'include' });
                 if (!epRes.ok) throw new Error('Episode list failed: ' + epRes.status);
                 var epData = await epRes.json();
-                var seasonFiles = (epData.data?.file_list || []).filter(function(f) { return f.is_dir !== 1; });
+                var seasonFiles = (epData.data?.file_list || []).filter(function(f) { return String(f.is_dir) !== '1'; });
 
                 var epFiles = seasonFiles.filter(function(f) {
                   var m = f.file_name.match(/[Ss]\\d+[Ee](\\d+)/);
@@ -146,7 +151,7 @@ export const FebBoxResolverModal: React.FC = () => {
                 }
                 targetFid = chosen.fid;
               } else {
-                var vidFiles = fileList.filter(function(f) { return f.is_dir !== 1; });
+                var vidFiles = fileList.filter(function(f) { return String(f.is_dir) !== '1'; });
                 if (vidFiles.length === 0) {
                   var fidMatch = document.body.innerHTML.match(/data-fid="(\\d+)"/) || document.body.innerHTML.match(/fid["']?\\s*:\\s*["']?(\\d+)/);
                   if (fidMatch) targetFid = fidMatch[1];
@@ -192,6 +197,7 @@ export const FebBoxResolverModal: React.FC = () => {
               shareKey: shareKey
             });
           } catch (err) {
+            window.__isResolvingStream = false;
             post({ type: 'ERROR', message: err.message });
           }
         }
@@ -214,7 +220,7 @@ export const FebBoxResolverModal: React.FC = () => {
         if (data.text) setStatusText(data.text);
       } else if (data.type === 'RESOLVED') {
         setStatusText('Stream found!');
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
         console.log('[FebBoxResolverModal] Target FID resolved:', data.targetFid, 'HTML length:', (data.qualityHtml || '').length);
@@ -262,12 +268,21 @@ export const FebBoxResolverModal: React.FC = () => {
         },
       }}
       injectedJavaScriptBeforeContentLoaded={injectedCookieScript}
+      onShouldStartLoadWithRequest={(request) => {
+        if (request.url.startsWith('febbox://')) {
+          console.log('[FebBoxResolverModal] Blocking deep link:', request.url);
+          return false;
+        }
+        return true;
+      }}
       onLoadStart={() => console.log('[FebBoxResolverModal] WebView load started')}
       onLoadEnd={() => {
         console.log('[FebBoxResolverModal] WebView load ended');
         triggerInjection();
         if (!pollTimerRef.current) {
-          pollTimerRef.current = setInterval(triggerInjection, 2500);
+          pollTimerRef.current = setTimeout(() => {
+            triggerInjection();
+          }, 3500);
         }
       }}
       onError={(syntheticEvent) => {

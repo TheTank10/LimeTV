@@ -43,23 +43,24 @@ export interface FebBoxStreamResult {
 }
 
 interface FebBoxFile {
-  fid: number;
+  fid: number | string;
   file_name: string;
   file_size: string;
-  file_size_bytes: number;
+  file_size_bytes: number | string;
   ext: string;
+  is_dir?: number | string;
 }
 
 interface FebBoxSearchResponse {
   code: number;
   data: {
     file_list: Array<{
-      fid: number;
+      fid: number | string;
       file_name: string;
       file_size: string;
-      file_size_bytes: number;
+      file_size_bytes: number | string;
       ext: string;
-      is_dir: number;
+      is_dir: number | string;
     }>;
   };
 }
@@ -365,7 +366,7 @@ const selectBestFile = (files: FebBoxFile[], is4KEnabled: boolean): FebBoxFile =
   if (is4KEnabled) {
     // 4K ON: select largest file (original logic)
     return filesToConsider.reduce((largest, current) =>
-      current.file_size_bytes > largest.file_size_bytes ? current : largest
+      Number(current.file_size_bytes) > Number(largest.file_size_bytes) ? current : largest
     );
   }
 
@@ -378,7 +379,7 @@ const selectBestFile = (files: FebBoxFile[], is4KEnabled: boolean): FebBoxFile =
   if (files1080p.length > 0) {
     console.log('[FebBox] 4K OFF: Selecting 1080p file');
     return files1080p.reduce((largest, current) =>
-      current.file_size_bytes > largest.file_size_bytes ? current : largest
+      Number(current.file_size_bytes) > Number(largest.file_size_bytes) ? current : largest
     );
   }
 
@@ -390,14 +391,14 @@ const selectBestFile = (files: FebBoxFile[], is4KEnabled: boolean): FebBoxFile =
     // 4K exists but so do alternatives - pick largest non-4K
     console.log('[FebBox] 4K OFF: Avoiding 4K, selecting alternative');
     return nonFiles4K.reduce((largest, current) =>
-      current.file_size_bytes > largest.file_size_bytes ? current : largest
+      Number(current.file_size_bytes) > Number(largest.file_size_bytes) ? current : largest
     );
   }
 
   // No alternatives or no 4K detected - just return largest
   console.log('[FebBox] 4K OFF: No alternatives, selecting largest available');
   return filesToConsider.reduce((largest, current) =>
-    current.file_size_bytes > largest.file_size_bytes ? current : largest
+    Number(current.file_size_bytes) > Number(largest.file_size_bytes) ? current : largest
   );
 };
 
@@ -656,7 +657,8 @@ export const getFebBoxStreamDirect = async (
         const pageFileList = pageData.data.file_list;
 
         seasonFolder = pageFileList.find(item => {
-          if (item.is_dir !== 1) return false;
+          const isDir = String(item.is_dir) === '1';
+          if (!isDir) return false;
           const regex = new RegExp(`season\\s*0*${season}\\b`, 'i');
           return regex.test(item.file_name);
         });
@@ -682,7 +684,7 @@ export const getFebBoxStreamDirect = async (
       }
 
       const seasonData: FebBoxSearchResponse = await seasonResponse.json();
-      const seasonFiles = seasonData.data.file_list.filter(f => f.is_dir !== 1);
+      const seasonFiles = seasonData.data.file_list.filter(f => String(f.is_dir) !== '1');
 
       const episodeFiles = seasonFiles.filter(f => {
         const match = f.file_name.match(/[Ss]\d+[Ee](\d+)/);
@@ -701,7 +703,7 @@ export const getFebBoxStreamDirect = async (
 
     } else {
       // Movie
-      const videoFiles = fileList.filter(f => f.is_dir !== 1);
+      const videoFiles = fileList.filter(f => String(f.is_dir) !== '1');
 
       if (videoFiles.length === 0) {
         return { success: false, error: 'No video files found' };
