@@ -203,7 +203,7 @@
     #subtitle-text:empty { display: none; }
 
     #sub-panel {
-      position: absolute; bottom: 70px; right: 24px;
+      position: absolute; bottom: 70px; right: 60px;
       background: rgba(28,28,30,0.97);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 12px; padding: 8px 0; min-width: 180px;
@@ -230,6 +230,40 @@
       margin-left: auto; font-size: 10px; font-weight: 600;
       color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.08);
       padding: 1px 7px; border-radius: 10px; letter-spacing: 0.3px; flex-shrink: 0;
+    }
+
+    #quality-panel {
+      position: absolute; bottom: 70px; right: 24px;
+      background: rgba(28,28,30,0.97);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 8px 0; min-width: 160px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+      display: none; z-index: 100;
+    }
+    #quality-panel.open { display: block; }
+    .quality-panel-title {
+      font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.4);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      padding: 4px 14px 8px;
+    }
+    .quality-item {
+      padding: 9px 14px; font-size: 14px; cursor: pointer; color: #fff;
+      display: flex; align-items: center; gap: 10px;
+      border-radius: 8px; margin: 0 4px 2px;
+      transition: background 0.1s;
+    }
+    .quality-item:hover { background: rgba(255,255,255,0.07); }
+    .quality-item.active { background: rgba(255,255,255,0.1); }
+    .quality-item .check { opacity: 0; color: #4CAF50; font-size: 15px; font-weight: bold; flex-shrink: 0; }
+    .quality-item.active .check { opacity: 1; }
+    .quality-item .quality-badge {
+      margin-left: auto; font-size: 10px; font-weight: 700;
+      color: var(--lime); background: rgba(163,230,53,0.15);
+      padding: 1px 6px; border-radius: 6px; letter-spacing: 0.5px; flex-shrink: 0;
+    }
+    .quality-item .quality-auto-res {
+      margin-left: auto; font-size: 12px; font-weight: 500;
+      color: rgba(255,255,255,0.45);
     }
 
     .sub-panel-divider {
@@ -290,7 +324,7 @@
       text-align: center;
       font-variant-numeric: tabular-nums;
     }
-    #sub-size-toast {
+    #player-toast {
       position: absolute;
       top: 30px;
       left: 50%;
@@ -310,7 +344,7 @@
       z-index: 250;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
     }
-    #sub-size-toast.visible {
+    #player-toast.visible {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
@@ -337,7 +371,7 @@
   <video id="video" preload="auto"></video>
 
   <div id="subtitle-display"><span id="subtitle-text"></span></div>
-  <div id="sub-size-toast">Caption size: 100%</div>
+  <div id="player-toast">Caption size: 100%</div>
 
   <div id="controls">
     <div class="top-bar">
@@ -372,10 +406,13 @@
           <input type="range" id="volume-slider" min="0" max="1" step="0.02" value="1" />
         </div>
 
-        <button class="ctrl-btn" id="sub-btn" title="Subtitles">
+        <button class="ctrl-btn" id="sub-btn" title="Subtitles (c)">
           <svg class="btn-svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h2v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H12v-2h8v2z"/></svg>
         </button>
-        <button class="ctrl-btn" id="fs-btn" title="Fullscreen">
+        <button class="ctrl-btn" id="quality-btn" title="Quality" style="display:none">
+          <svg class="btn-svg" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        </button>
+        <button class="ctrl-btn" id="fs-btn" title="Fullscreen (f)">
           <svg class="btn-svg" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         </button>
       </div>
@@ -394,6 +431,11 @@
         <button class="sub-size-btn" id="sub-size-inc" title="Increase caption size (+)">+</button>
       </div>
     </div>
+  </div>
+
+  <div id="quality-panel">
+    <div class="quality-panel-title">Quality</div>
+    <div id="quality-list"></div>
   </div>
 </div>
 
@@ -503,7 +545,10 @@ async function initPlayer(data) {
     hls = new Hls({ enableWorker: true });
     hls.loadSource(data.streamUrl);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, onReady);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      onReady();
+      setupQualityPanel(hls);
+    });
     hls.on(Hls.Events.ERROR, (_, e) => { if (e.fatal) console.error('[HLS]', e); });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = data.streamUrl;
@@ -518,6 +563,102 @@ async function initPlayer(data) {
   applySubtitleStyling(data.subtitleStyling);
 }
 
+function setupQualityPanel(hlsInstance) {
+  const qualityBtn = document.getElementById('quality-btn');
+  const qualityPanel = document.getElementById('quality-panel');
+  const qualityList = document.getElementById('quality-list');
+  if (!qualityBtn || !qualityPanel || !qualityList) return;
+
+  if (!hlsInstance || !hlsInstance.levels || hlsInstance.levels.length <= 1) {
+    qualityBtn.style.display = 'none';
+    return;
+  }
+
+  qualityBtn.style.display = 'flex';
+
+  const levels = hlsInstance.levels.map((lvl, idx) => ({
+    index: idx,
+    height: lvl.height || 0,
+    width: lvl.width || 0,
+    bitrate: lvl.bitrate || 0,
+  }));
+
+  levels.sort((a, b) => (b.height - a.height) || (b.bitrate - a.bitrate));
+
+  let selectedQualityChoice = -1; // -1 represents Auto
+  let savedPref = 'auto';
+  try {
+    const s = localStorage.getItem('limetv_pref_quality');
+    if (s) savedPref = s;
+  } catch (e) {}
+
+  if (savedPref !== 'auto') {
+    const matched = levels.find(l => `${l.height}p` === savedPref || `${l.height}` === savedPref);
+    if (matched) {
+      selectedQualityChoice = matched.index;
+      hlsInstance.nextLevel = matched.index;
+    }
+  }
+
+  function renderList() {
+    qualityList.innerHTML = '';
+
+    const isAuto = selectedQualityChoice === -1;
+    const autoItem = document.createElement('div');
+    autoItem.className = 'quality-item' + (isAuto ? ' active' : '');
+
+    let autoSubtext = '';
+    const currentPlayingLevel = hlsInstance.currentLevel >= 0 ? hlsInstance.levels[hlsInstance.currentLevel] : null;
+    if (isAuto && currentPlayingLevel && currentPlayingLevel.height) {
+      autoSubtext = `<span class="quality-auto-res">${currentPlayingLevel.height}p</span>`;
+    }
+
+    autoItem.innerHTML = `<span class="check">✓</span><span>Auto</span>${autoSubtext}`;
+    autoItem.addEventListener('click', () => {
+      selectedQualityChoice = -1;
+      hlsInstance.nextLevel = -1;
+      try { localStorage.setItem('limetv_pref_quality', 'auto'); } catch (e) {}
+      renderList();
+      qualityPanel.classList.remove('open');
+      showPlayerToast('Quality: Auto');
+    });
+    qualityList.appendChild(autoItem);
+
+    levels.forEach(l => {
+      const isSelected = selectedQualityChoice === l.index;
+      const item = document.createElement('div');
+      item.className = 'quality-item' + (isSelected ? ' active' : '');
+
+      const resName = l.height ? `${l.height}p` : `${Math.round(l.bitrate / 1000)}k`;
+      let badge = '';
+      if (l.height >= 1080) {
+        badge = '<span class="quality-badge">FHD</span>';
+      } else if (l.height >= 720) {
+        badge = '<span class="quality-badge">HD</span>';
+      }
+
+      item.innerHTML = `<span class="check">✓</span><span>${resName}</span>${badge}`;
+      item.addEventListener('click', () => {
+        selectedQualityChoice = l.index;
+        hlsInstance.nextLevel = l.index;
+        try { localStorage.setItem('limetv_pref_quality', resName); } catch (e) {}
+        renderList();
+        qualityPanel.classList.remove('open');
+        showPlayerToast(`Quality: ${resName}`);
+      });
+      qualityList.appendChild(item);
+    });
+  }
+
+  renderList();
+
+  hlsInstance.on(Hls.Events.LEVEL_SWITCHED, () => {
+    if (selectedQualityChoice === -1) {
+      renderList();
+    }
+  });
+}
+
 const SUB_SCALES = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5];
 let currentScaleIndex = 2; // Default to 1.0 (100%)
 let baseSubFontSize = 20;
@@ -530,15 +671,19 @@ try {
   }
 } catch (e) {}
 
-function showSubSizeToast(percentage) {
-  const toast = document.getElementById('sub-size-toast');
+function showPlayerToast(msg) {
+  const toast = document.getElementById('player-toast');
   if (!toast) return;
-  toast.textContent = `Caption size: ${percentage}%`;
+  toast.textContent = msg;
   toast.classList.add('visible');
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => {
     toast.classList.remove('visible');
   }, 1500);
+}
+
+function showSubSizeToast(percentage) {
+  showPlayerToast(`Caption size: ${percentage}%`);
 }
 
 function applySubtitleScale(showToast = false) {
@@ -637,7 +782,9 @@ function setupControls(video) {
 
   psEl.addEventListener('mousemove', showCtrl);
   psEl.addEventListener('click', e => {
-    if (e.target.closest('.ctrl-btn') || e.target.closest('#sub-panel')) return;
+    if (e.target.closest('.ctrl-btn') || e.target.closest('#sub-panel') || e.target.closest('#quality-panel')) return;
+    document.getElementById('sub-panel')?.classList.remove('open');
+    document.getElementById('quality-panel')?.classList.remove('open');
     if (controls.classList.contains('visible') && !video.paused) controls.classList.remove('visible');
     else showCtrl();
   });
@@ -752,11 +899,28 @@ function setupControls(video) {
   progWrap.addEventListener('touchmove',  e => { if (isScrubbing) moveScrub(e); }, { passive: false });
   progWrap.addEventListener('touchend',   endScrub);
 
-  document.getElementById('sub-btn').addEventListener('click', e => {
-    e.stopPropagation();
-    document.getElementById('sub-panel').classList.toggle('open');
-    showCtrl();
-  });
+  const subBtn = document.getElementById('sub-btn');
+  const subPanel = document.getElementById('sub-panel');
+  const qualityBtn = document.getElementById('quality-btn');
+  const qualityPanel = document.getElementById('quality-panel');
+
+  if (subBtn && subPanel) {
+    subBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (qualityPanel) qualityPanel.classList.remove('open');
+      subPanel.classList.toggle('open');
+      showCtrl();
+    });
+  }
+
+  if (qualityBtn && qualityPanel) {
+    qualityBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (subPanel) subPanel.classList.remove('open');
+      qualityPanel.classList.toggle('open');
+      showCtrl();
+    });
+  }
 
   const subSizeDec = document.getElementById('sub-size-dec');
   if (subSizeDec) {
