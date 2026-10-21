@@ -14,15 +14,15 @@ jobs:
       NODE_OPTIONS: "--max-old-space-size=4096"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Prebuild iOS
         run: npx expo prebuild --platform ios --clean
@@ -111,6 +111,7 @@ jobs:
         with:
           name: build-log
           path: ios/build.log
+          if-no-files-found: ignore
 
       - name: Create Release with IPA
         if: success()
