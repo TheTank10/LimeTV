@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
-  ActivityIndicator 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -13,19 +13,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { COLORS, SPACING } from '../constants';
-import { 
-  useFebBoxTokens, 
-  useSubtitleLanguages, 
-  useFebBoxServer, 
-  useSubtitleStyling, 
-  useFebBox4K 
+import {
+  useFebBoxTokens,
+  useSubtitleLanguages,
+  useFebBoxServer,
+  useSubtitleStyling,
+  useFebBox4K
 } from '../hooks';
-import { 
-  TokenInput, 
-  LanguagePicker, 
-  LanguageItem, 
-  SettingsFebboxServerPicker, 
-  SubtitleCustomizerModal 
+import {
+  TokenInput,
+  LanguagePicker,
+  LanguageItem,
+  SettingsFebboxServerPicker,
+  SubtitleCustomizerModal
 } from '../components';
 
 export const SettingsScreen: React.FC = () => {
@@ -35,7 +35,7 @@ export const SettingsScreen: React.FC = () => {
   const { selectedServer, availableServers, isLoading: serverLoading, selectServer } = useFebBoxServer();
   const { styling, isLoading: stylingLoading, updateStyling, resetToDefault } = useSubtitleStyling();
   const { is4KEnabled, isLoading: fourKLoading, toggle4K } = useFebBox4K();
-  
+
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [showStylingCustomizer, setShowStylingCustomizer] = useState(false);
@@ -57,7 +57,7 @@ export const SettingsScreen: React.FC = () => {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.closeButton}
               onPress={() => navigation.goBack()}
             >
@@ -68,7 +68,7 @@ export const SettingsScreen: React.FC = () => {
           {/* Settings Content */}
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
             <View style={styles.content}>
-              
+
               {/* FebBox Section */}
               <Text style={styles.sectionHeader}>FEBBOX</Text>
               <View style={styles.section}>
@@ -93,8 +93,8 @@ export const SettingsScreen: React.FC = () => {
                 {/* Server Selection */}
                 {tokens.length > 0 && <View style={styles.divider} />}
 
-                <TouchableOpacity 
-                  style={styles.addButton} 
+                <TouchableOpacity
+                  style={styles.addButton}
                   onPress={() => setShowServerPicker(true)}
                 >
                   <Ionicons name="server-outline" size={22} color="rgba(201, 255, 0, 0.9)" />
@@ -118,7 +118,7 @@ export const SettingsScreen: React.FC = () => {
                       <Text style={styles.serverSubtext}>Enable ultra high definition</Text>
                     </View>
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.toggle, is4KEnabled && styles.toggleActive]}
                     onPress={toggle4K}
                     activeOpacity={0.7}
@@ -137,8 +137,8 @@ export const SettingsScreen: React.FC = () => {
               {/* Subtitles Section */}
               <Text style={styles.sectionHeader}>SUBTITLES</Text>
               <View style={styles.section}>
-                <TouchableOpacity 
-                  style={styles.addButton} 
+                <TouchableOpacity
+                  style={styles.addButton}
                   onPress={() => setShowLanguagePicker(true)}
                 >
                   <Ionicons name="add-circle-outline" size={22} color="rgba(201, 255, 0, 0.9)" />
@@ -160,8 +160,8 @@ export const SettingsScreen: React.FC = () => {
                 {/* Subtitle Appearance */}
                 <View style={styles.divider} />
 
-                <TouchableOpacity 
-                  style={styles.addButton} 
+                <TouchableOpacity
+                  style={styles.addButton}
                   onPress={() => setShowStylingCustomizer(true)}
                 >
                   <Ionicons name="color-palette-outline" size={22} color="rgba(201, 255, 0, 0.9)" />

@@ -21,7 +21,6 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
-import { Audio } from 'expo-av';
 
 import { getSubtitles } from '../services/opensubtitles';
 import { useSubtitleStyling, useContinueWatching } from '../hooks';
@@ -126,14 +125,15 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isCasting, setIsCasting] = useState(false);
   const [showCastModal, setShowCastModal] = useState(false);
 
-  const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
+  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSeekingRef = useRef(false);
-  const progressSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const player = useVideoPlayer(
     { uri: videoUrl, contentType: 'hls' },
     (player) => {
       player.loop = false;
+      player.staysActiveInBackground = true;
       player.timeUpdateEventInterval = 0.1;
       player.play();
     }
@@ -142,13 +142,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   useLayoutEffect(() => {
     navigation.setOptions({ autoHideHomeIndicator: true });
   }, [navigation]);
-
-  useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-    });
-  }, []);
 
   const timeUpdate = useEvent(player, "timeUpdate");
   const { isPlaying: playerIsPlaying } = useEvent(player, 'playingChange', {
@@ -187,7 +180,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       StatusBar.setHidden(true);
       if (Platform.OS === "android") {
         await NavigationBar.setVisibilityAsync("hidden");
-        await NavigationBar.setBehaviorAsync("overlay-swipe");
       }
     })();
 
@@ -255,7 +247,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Periodic progress saving (every 20 seconds while playing)
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     if (isPlaying && duration > 0 && tmdbId && mediaType) {
       intervalId = setInterval(() => {
@@ -510,7 +502,6 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       <VideoView
         player={player}
         style={styles.video}
-        allowsFullscreen
         allowsPictureInPicture
         contentFit="contain"
         nativeControls={false}

@@ -7,6 +7,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { DetailScreen } from './src/screens/DetailScreen';
 import { PlayerScreen } from './src/screens/PlayerScreen';
 import { SettingsScreen } from './src/screens/SettingScreen';
+import { FebBoxResolverModal } from './src/components/FebBoxResolverModal';
 import { RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,6 +65,7 @@ export default function App() {
           <Stack.Screen name="Settings" component={SettingsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
+      <FebBoxResolverModal />
     </>
   );
 }
