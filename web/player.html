@@ -320,9 +320,18 @@
       font-size: 12px;
       font-weight: 600;
       color: rgba(255, 255, 255, 0.85);
-      min-width: 44px;
+      min-width: 52px;
       text-align: center;
       font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      user-select: none;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    #sub-size-display:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--lime);
     }
     #player-toast {
       position: absolute;
@@ -427,7 +436,7 @@
       <div class="sub-size-label">Size</div>
       <div class="sub-size-controls">
         <button class="sub-size-btn" id="sub-size-dec" title="Decrease caption size (-)">−</button>
-        <span id="sub-size-display">100%</span>
+        <span id="sub-size-display" title="Click to reset to 100%">100%</span>
         <button class="sub-size-btn" id="sub-size-inc" title="Increase caption size (+)">+</button>
       </div>
     </div>
@@ -659,15 +668,23 @@ function setupQualityPanel(hlsInstance) {
   });
 }
 
-const SUB_SCALES = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5];
-let currentScaleIndex = 2; // Default to 1.0 (100%)
+const SUB_SCALE_STEP = 5; // 5% increment
+let currentSubScalePercent = 100; // Default to 100%
 let baseSubFontSize = 20;
 let toastTimeout = null;
 
 try {
-  const savedIdx = localStorage.getItem('limetv_sub_scale_idx');
-  if (savedIdx !== null && !isNaN(savedIdx)) {
-    currentScaleIndex = Math.max(0, Math.min(SUB_SCALES.length - 1, parseInt(savedIdx, 10)));
+  const savedPercent = localStorage.getItem('limetv_sub_scale_percent');
+  if (savedPercent !== null && !isNaN(savedPercent)) {
+    currentSubScalePercent = Math.max(5, parseInt(savedPercent, 10));
+  } else {
+    // Migrate from legacy index-based scale if present
+    const savedIdx = localStorage.getItem('limetv_sub_scale_idx');
+    if (savedIdx !== null && !isNaN(savedIdx)) {
+      const oldScales = [50, 75, 100, 125, 150, 175, 200, 250];
+      const idx = Math.max(0, Math.min(oldScales.length - 1, parseInt(savedIdx, 10)));
+      currentSubScalePercent = oldScales[idx];
+    }
   }
 } catch (e) {}
 
@@ -687,34 +704,34 @@ function showSubSizeToast(percentage) {
 }
 
 function applySubtitleScale(showToast = false) {
-  const scale = SUB_SCALES[currentScaleIndex];
-  const percent = Math.round(scale * 100);
+  const scale = currentSubScalePercent / 100;
   const subText = document.getElementById('subtitle-text');
   const sizeDisplay = document.getElementById('sub-size-display');
 
   if (subText) {
-    subText.style.fontSize = `${Math.round(baseSubFontSize * scale)}px`;
+    subText.style.fontSize = `${Math.max(1, Math.round(baseSubFontSize * scale))}px`;
   }
   if (sizeDisplay) {
-    sizeDisplay.textContent = `${percent}%`;
+    sizeDisplay.textContent = `${currentSubScalePercent}%`;
   }
 
   try {
-    localStorage.setItem('limetv_sub_scale_idx', currentScaleIndex);
+    localStorage.setItem('limetv_sub_scale_percent', currentSubScalePercent);
   } catch (e) {}
 
   if (showToast) {
-    showSubSizeToast(percent);
+    showSubSizeToast(currentSubScalePercent);
   }
 }
 
 function changeSubtitleScale(delta, showToast = true) {
-  const newIndex = Math.max(0, Math.min(SUB_SCALES.length - 1, currentScaleIndex + delta));
-  if (newIndex !== currentScaleIndex) {
-    currentScaleIndex = newIndex;
+  const change = delta * SUB_SCALE_STEP;
+  const newPercent = Math.max(5, currentSubScalePercent + change);
+  if (newPercent !== currentSubScalePercent) {
+    currentSubScalePercent = newPercent;
     applySubtitleScale(showToast);
   } else if (showToast) {
-    showSubSizeToast(Math.round(SUB_SCALES[currentScaleIndex] * 100));
+    showSubSizeToast(currentSubScalePercent);
   }
 }
 
@@ -923,20 +940,68 @@ function setupControls(video) {
   }
 
   const subSizeDec = document.getElementById('sub-size-dec');
-  if (subSizeDec) {
-    subSizeDec.addEventListener('click', e => {
-      e.stopPropagation();
-      changeSubtitleScale(-1, true);
+  const subSizeInc = document.getElementById('sub-size-inc');
+  const subSizeDisplay = document.getElementById('sub-size-display');
+
+  function attachSubSizeBtnHold(btn, direction) {
+    if (!btn) return;
+    let repeatTimeout = null;
+    let repeatInterval = null;
+
+    const clearRepeat = () => {
+      clearTimeout(repeatTimeout);
+      clearInterval(repeatInterval);
+      repeatTimeout = null;
+      repeatInterval = null;
+    };
+
+    const triggerStep = () => {
+      changeSubtitleScale(direction, true);
       showCtrl();
+    };
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
     });
+
+    btn.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      triggerStep();
+      clearRepeat();
+      repeatTimeout = setTimeout(() => {
+        repeatInterval = setInterval(triggerStep, 75);
+      }, 350);
+    });
+
+    btn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerStep();
+      clearRepeat();
+      repeatTimeout = setTimeout(() => {
+        repeatInterval = setInterval(triggerStep, 75);
+      }, 350);
+    }, { passive: false });
+
+    window.addEventListener('mouseup', clearRepeat);
+    window.addEventListener('touchend', clearRepeat);
+    window.addEventListener('touchcancel', clearRepeat);
+    btn.addEventListener('mouseleave', clearRepeat);
   }
 
-  const subSizeInc = document.getElementById('sub-size-inc');
-  if (subSizeInc) {
-    subSizeInc.addEventListener('click', e => {
+  attachSubSizeBtnHold(subSizeDec, -1);
+  attachSubSizeBtnHold(subSizeInc, 1);
+
+  if (subSizeDisplay) {
+    subSizeDisplay.title = 'Click to reset to 100%';
+    subSizeDisplay.addEventListener('click', e => {
       e.stopPropagation();
-      changeSubtitleScale(1, true);
-      showCtrl();
+      if (currentSubScalePercent !== 100) {
+        currentSubScalePercent = 100;
+        applySubtitleScale(true);
+        showCtrl();
+      }
     });
   }
 
