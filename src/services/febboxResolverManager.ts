@@ -2,6 +2,8 @@ import { FebBoxStreamResult } from './febbox';
 
 export interface FebBoxResolveTask {
   shareKey: string;
+  fid?: number;
+  fileSize?: string;
   type: 'movie' | 'tv';
   season?: number;
   episode?: number;

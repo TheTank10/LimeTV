@@ -53,42 +53,59 @@ export const useFebBoxTokens = () => {
   const saveTokens = useCallback(async () => {
     try {
       const nonEmptyTokens = tokens
-        .filter(token => token.value.trim() !== '')
-        .map(token => token.value);
+        .filter(token => token.value && token.value.trim() !== '')
+        .map(token => token.value.trim());
       await AsyncStorage.setItem(TOKENS_STORAGE_KEY, JSON.stringify(nonEmptyTokens));
+      console.log('[useFebboxTokens] Saved to AsyncStorage:', nonEmptyTokens.length, 'tokens');
     } catch (error) {
       console.error('Error saving tokens:', error);
     }
   }, [tokens]);
 
   const addToken = () => {
-    setTokens([...tokens, { value: '', status: 'idle' }]);
+    setTokens(prev => [...prev, { value: '', status: 'idle' }]);
   };
 
   const updateToken = async (index: number, value: string) => {
-    const newTokens = [...tokens];
-    newTokens[index] = { value, status: 'validating' };
-    setTokens(newTokens);
+    const trimmed = value.trim();
+    console.log(`[useFebboxTokens] updateToken called at index ${index}, length: ${value.length}`);
 
-    if (value.trim() !== '') {
-      const result = await validateFebBoxToken(value.trim());
-      
-      const updatedTokens = [...tokens];
-      updatedTokens[index] = {
-        value,
-        status: result.isValid ? 'valid' : 'invalid',
-        data: result.data,
-      };
-      setTokens(updatedTokens);
+    setTokens(prev => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { value, status: 'validating' };
+      }
+      return next;
+    });
+
+    if (trimmed !== '') {
+      const result = await validateFebBoxToken(trimmed);
+      console.log(`[useFebboxTokens] Token #${index} validation result:`, JSON.stringify(result));
+      setTokens(prev => {
+        const next = [...prev];
+        if (next[index]) {
+          next[index] = {
+            value: trimmed,
+            status: result.isValid ? 'valid' : 'invalid',
+            data: result.data,
+          };
+        }
+        return next;
+      });
     } else {
-      const updatedTokens = [...tokens];
-      updatedTokens[index] = { value: '', status: 'idle' };
-      setTokens(updatedTokens);
+      setTokens(prev => {
+        const next = [...prev];
+        if (next[index]) {
+          next[index] = { value: '', status: 'idle' };
+        }
+        return next;
+      });
     }
   };
 
   const removeToken = (index: number) => {
-    setTokens(tokens.filter((_, i) => i !== index));
+    console.log(`[useFebboxTokens] Removing token at index ${index}`);
+    setTokens(prev => prev.filter((_, i) => i !== index));
   };
 
   useEffect(() => {

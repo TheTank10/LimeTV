@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
 import { Platform } from 'react-native';
+import axios from 'axios';
 
 import { getImdbId } from './tmdb';
 import { febboxResolverManager } from './febboxResolverManager';
@@ -412,11 +413,14 @@ export const extractStreamFromHtml = (
     return { success: false, error: 'No player HTML received' };
   }
 
-  // 1. Try extracting the web_player HLS master URL
-  const webPlayerMatch = qualityHtml.match(/['"](https?:\/\/[^'"]*(?:hls|\.m3u8)[^'"]*KEY7=web_player[^'"]*)['"]/i);
-  if (webPlayerMatch) {
-    let hlsUrl = webPlayerMatch[1];
-    hlsUrl = hlsUrl.replace(/&quality=[^&]+/, '');
+  // Unescape JSON escaped slashes (\/ -> /)
+  const unescapedHtml = qualityHtml.replace(/\\\//g, '/');
+
+  // 1. Try explicit var m3u8_url = "..." variable definition
+  const m3u8VarMatch = unescapedHtml.match(/var\s+m3u8_url\s*=\s*['"](https?:\/\/[^'"]*(?:hls|\.m3u8)[^'"]*)['"]/i);
+  if (m3u8VarMatch) {
+    const hlsUrl = m3u8VarMatch[1].replace(/&quality=[^&]+/, '');
+    console.log('[FebBox Direct] Extracted m3u8_url variable:', hlsUrl.slice(0, 60) + '...');
     return {
       success: true,
       streamUrl: hlsUrl,
@@ -427,8 +431,45 @@ export const extractStreamFromHtml = (
     };
   }
 
-  // 2. Try ORG quality URL (MP4 only for iOS native player)
-  const orgMatch = qualityHtml.match(/data-url="([^"]+)"[^>]*data-quality="ORG"/);
+  // 2. Try parsing var sources = [...] array
+  const sourcesMatch = unescapedHtml.match(/var\s+sources\s*=\s*(\[[\s\S]*?\]);/i);
+  if (sourcesMatch) {
+    try {
+      const sourcesList = JSON.parse(sourcesMatch[1]) as Array<{ label?: string; file?: string }>;
+      const autoOrHls = sourcesList.find(s => s.label === 'AUTO' || s.file?.includes('.m3u8'));
+      if (autoOrHls?.file) {
+        console.log('[FebBox Direct] Extracted stream from sources array:', autoOrHls.label);
+        return {
+          success: true,
+          streamUrl: autoOrHls.file,
+          streamType: 'hls',
+          quality: autoOrHls.label || 'Master (Adaptive)',
+          size: fileSize,
+          shareKey,
+        };
+      }
+    } catch (e) {
+      console.warn('[FebBox Direct] Failed to parse sources array JSON:', e);
+    }
+  }
+
+  // 3. Try web_player HLS master URL regex
+  const webPlayerMatch = unescapedHtml.match(/['"](https?:\/\/[^'"]*(?:hls|\.m3u8)[^'"]*KEY7=web_player[^'"]*)['"]/i);
+  if (webPlayerMatch) {
+    const hlsUrl = webPlayerMatch[1].replace(/&quality=[^&]+/, '');
+    console.log('[FebBox Direct] Extracted web_player HLS regex match:', hlsUrl.slice(0, 60) + '...');
+    return {
+      success: true,
+      streamUrl: hlsUrl,
+      streamType: 'hls',
+      quality: 'Master (Adaptive)',
+      size: fileSize,
+      shareKey,
+    };
+  }
+
+  // 4. Try ORG quality URL (MP4 only for iOS native player)
+  const orgMatch = unescapedHtml.match(/data-url="([^"]+)"[^>]*data-quality="ORG"/);
   if (orgMatch) {
     const orgUrl = orgMatch[1];
     const isMp4 = orgUrl.toLowerCase().includes('.mp4') || !orgUrl.toLowerCase().includes('.mkv');
@@ -444,11 +485,10 @@ export const extractStreamFromHtml = (
     }
   }
 
-  // 3. Fallback: Standard HTML HLS adaptive
-  const hlsMatch = qualityHtml.match(/data-url="(https?:\/\/[^"]*(?:hls|\.m3u8)[^"]*)"/);
+  // 5. Fallback: Standard HTML HLS adaptive
+  const hlsMatch = unescapedHtml.match(/data-url="(https?:\/\/[^"]*(?:hls|\.m3u8)[^"]*)"/);
   if (hlsMatch) {
-    let hlsUrl = hlsMatch[1];
-    hlsUrl = hlsUrl.replace(/&quality=[^&]+/, '');
+    const hlsUrl = hlsMatch[1].replace(/&quality=[^&]+/, '');
     return {
       success: true,
       streamUrl: hlsUrl,
@@ -459,6 +499,7 @@ export const extractStreamFromHtml = (
     };
   }
 
+  console.warn('[FebBox Direct] Could not extract stream from HTML snippet:\n', unescapedHtml);
   return { success: false, error: 'No streamable URL found in player config' };
 };
 
@@ -487,15 +528,21 @@ export const getFebBoxStreamDirect = async (
     }
 
     const tokens: string[] = JSON.parse(stored);
-    if (tokens.length === 0) {
+    const validTokens = (Array.isArray(tokens) ? tokens : [])
+      .map(t => (typeof t === 'string' ? t.trim() : ''))
+      .filter(Boolean);
+
+    if (validTokens.length === 0) {
       return { success: false, error: 'No tokens available' };
     }
 
-    const token = tokens[0];
+    const token = validTokens[0];
     const shareUrl = `https://www.febbox.com/share/${febboxShareKey}`;
     const headers = await getFebBoxHeaders(token, shareUrl);
 
     console.log('[FebBox Direct] Starting:', { shareKey: febboxShareKey, type, season, episode });
+    console.log('[FebBox Direct] Stored tokens count:', validTokens.length);
+    console.log('[FebBox Direct] Active Token snippet:', token.slice(0, 15) + '...' + token.slice(-10));
 
     // Check if single file or folder
     const rootResponse = await fetch(
@@ -505,7 +552,7 @@ export const getFebBoxStreamDirect = async (
 
     if (!rootResponse.ok) {
       const errText = await rootResponse.text();
-      console.log('[FebBox Direct] Root fetch error status:', rootResponse.status, 'body:', errText.slice(0, 300));
+      console.log('[FebBox Direct] Root fetch error status:', rootResponse.status, 'body:\n' + errText);
 
       if (rootResponse.status === 403 || errText.includes('Just a moment') || errText.includes('Cloudflare')) {
         console.log('[FebBox Direct] Cloudflare challenge detected! Delegating to in-app WebView solver...');
@@ -539,18 +586,22 @@ export const getFebBoxStreamDirect = async (
 
       let qualityHtml = '';
       try {
-        console.log('[FebBox Direct] Attempting to fetch web_player config from /file/player...');
-        const playerResponse = await fetch('https://www.febbox.com/file/player', {
-          method: 'POST',
-          headers: {
-            ...headers,
-            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          },
-          body: `fid=${fid}&share_key=${febboxShareKey}`,
-        });
-        if (playerResponse.ok) {
-          qualityHtml = await playerResponse.text();
-        }
+        console.log('[FebBox Direct] Attempting to fetch web_player config from /file/player via axios...');
+        const playerResponse = await axios.post(
+          'https://www.febbox.com/file/player',
+          `fid=${fid}&share_key=${febboxShareKey}`,
+          {
+            headers: {
+              ...headers,
+              'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            },
+            responseType: 'text',
+            validateStatus: () => true,
+          }
+        );
+        qualityHtml = typeof playerResponse.data === 'string' ? playerResponse.data : JSON.stringify(playerResponse.data);
+        console.log('[FebBox Direct] /file/player status:', playerResponse.status);
+        console.log('[FebBox Direct] /file/player raw response:\n' + qualityHtml);
       } catch (e) {
         console.warn('[FebBox Direct] Failed to fetch /file/player HTML, falling back to quality list:', e);
       }
@@ -560,14 +611,29 @@ export const getFebBoxStreamDirect = async (
           `https://www.febbox.com/console/video_quality_list?fid=${fid}&share_key=${febboxShareKey}`,
           { headers }
         );
-        if (!mediaResponse.ok) {
-          throw new Error(`Media URL fetch failed: ${mediaResponse.status}`);
+        if (mediaResponse.ok) {
+          const mediaData: FebBoxMediaResponse = await mediaResponse.json();
+          qualityHtml = mediaData.html || '';
         }
-        const mediaData: FebBoxMediaResponse = await mediaResponse.json();
-        qualityHtml = mediaData.html || '';
       }
 
-      return extractStreamFromHtml(qualityHtml, febboxShareKey, 'Unknown');
+      if (qualityHtml) {
+        const singleResult = extractStreamFromHtml(qualityHtml, febboxShareKey, 'Unknown');
+        if (singleResult.success) {
+          return singleResult;
+        }
+      }
+
+      console.log('[FebBox Direct] Single file stream extraction failed. Delegating to in-app WebView solver...');
+      return await febboxResolverManager.resolve({
+        shareKey: febboxShareKey,
+        type,
+        season,
+        episode,
+        token,
+        server: await getSelectedServer(),
+        is4KEnabled,
+      });
     }
 
     // Folder share - find target file
@@ -653,35 +719,60 @@ export const getFebBoxStreamDirect = async (
     // Get media URL
     let qualityHtml = '';
     try {
-      console.log('[FebBox Direct] Attempting to fetch web_player config from /file/player...');
-      const playerResponse = await fetch('https://www.febbox.com/file/player', {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        },
-        body: `fid=${targetFile.fid}&share_key=${febboxShareKey}`,
-      });
-      if (playerResponse.ok) {
-        qualityHtml = await playerResponse.text();
-      }
+      console.log('[FebBox Direct] Attempting to fetch web_player config from /file/player via axios for fid:', targetFile.fid);
+      const playerResponse = await axios.post(
+        'https://www.febbox.com/file/player',
+        `fid=${targetFile.fid}&share_key=${febboxShareKey}`,
+        {
+          headers: {
+            ...headers,
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          },
+          responseType: 'text',
+          validateStatus: () => true,
+        }
+      );
+      qualityHtml = typeof playerResponse.data === 'string' ? playerResponse.data : JSON.stringify(playerResponse.data);
+      console.log('[FebBox Direct] /file/player status:', playerResponse.status);
+      console.log('[FebBox Direct] /file/player raw response:\n' + qualityHtml);
     } catch (e) {
-      console.warn('[FebBox Direct] Failed to fetch /file/player HTML, falling back to quality list:', e);
+      console.warn('[FebBox Direct] Failed to fetch /file/player HTML via axios, falling back to quality list:', e);
     }
 
     if (!qualityHtml) {
-      const mediaResponse = await fetch(
-        `https://www.febbox.com/console/video_quality_list?fid=${targetFile.fid}&share_key=${febboxShareKey}`,
-        { headers }
-      );
-      if (!mediaResponse.ok) {
-        throw new Error(`Media URL fetch failed: ${mediaResponse.status}`);
+      try {
+        const mediaResponse = await fetch(
+          `https://www.febbox.com/console/video_quality_list?fid=${targetFile.fid}&share_key=${febboxShareKey}`,
+          { headers }
+        );
+        if (mediaResponse.ok) {
+          const mediaData: FebBoxMediaResponse = await mediaResponse.json();
+          qualityHtml = mediaData.html || '';
+        }
+      } catch (e) {
+        console.warn('[FebBox Direct] video_quality_list fetch failed:', e);
       }
-      const mediaData: FebBoxMediaResponse = await mediaResponse.json();
-      qualityHtml = mediaData.html || '';
     }
 
-    return extractStreamFromHtml(qualityHtml, febboxShareKey, targetFile.file_size);
+    if (qualityHtml) {
+      const streamRes = extractStreamFromHtml(qualityHtml, febboxShareKey, targetFile.file_size);
+      if (streamRes.success) {
+        return streamRes;
+      }
+    }
+
+    console.log('[FebBox Direct] Direct fetch could not extract stream (login required or blocked). Delegating to in-app WebView solver for fid:', targetFile.fid);
+    return await febboxResolverManager.resolve({
+      shareKey: febboxShareKey,
+      fid: targetFile.fid,
+      fileSize: targetFile.file_size,
+      type,
+      season,
+      episode,
+      token,
+      server: await getSelectedServer(),
+      is4KEnabled,
+    });
   } catch (error) {
     console.error('[FebBox Direct] Error:', error);
     return {
@@ -1007,6 +1098,45 @@ export const getFebBoxStream = async (
 };
 
 /**
+ * Locally verify FebBox JWT token structure and expiration
+ */
+export const verifyLocalJwt = (uiToken: string): TokenValidationResult | null => {
+  try {
+    const cleanToken = uiToken.trim();
+    const parts = cleanToken.split('.');
+    if (parts.length === 3) {
+      const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = CryptoJS.enc.Base64.parse(b64).toString(CryptoJS.enc.Utf8);
+      const payload = JSON.parse(decoded);
+      if (payload && payload.data && payload.data.uid) {
+        const isExpired = payload.exp && payload.exp * 1000 < Date.now();
+        if (!isExpired) {
+          const expDate = new Date(payload.exp * 1000).toLocaleDateString();
+          console.log(`[verifyLocalJwt] Token JWT verified locally! UID: ${payload.data.uid}, Exp: ${expDate}`);
+          return {
+            isValid: true,
+            data: {
+              traffic_usage: 'Active (Verified)',
+              traffic_usage_mb: 0,
+              traffic_limit: '10 GB',
+              traffic_limit_mb: 10240,
+              is_vip: payload.data.is_vip ? 1 : 0,
+              reset_at: '24 Hours',
+            },
+          };
+        } else {
+          console.warn('[verifyLocalJwt] Token JWT is expired! Exp:', payload.exp);
+          return { isValid: false, error: 'Token is expired' };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[verifyLocalJwt] Failed to parse JWT:', err);
+  }
+  return null;
+};
+
+/**
  * Validates a FebBox UI token
  */
 export const validateFebBoxToken = async (
@@ -1016,10 +1146,13 @@ export const validateFebBoxToken = async (
     return { isValid: false, error: 'UI token is required' };
   }
 
+  const cleanToken = uiToken.trim();
+  console.log('[validateFebBoxToken] START. Token snippet:', cleanToken.slice(0, 15) + '...' + cleanToken.slice(-10));
+
   try {
     const url = 'https://www.febbox.com/console/user_traffic_query';
     const OSS_GROUP = await getSelectedServer();
-    const cookieString = `ui=${uiToken}; oss_group=${OSS_GROUP}`;
+    const cookieString = `ui=${cleanToken}; oss_group=${OSS_GROUP}`;
 
     const userAgent = Platform.OS === 'ios'
       ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
@@ -1035,59 +1168,50 @@ export const validateFebBoxToken = async (
       'x-requested-with': 'XMLHttpRequest',
     };
 
-    const response = await fetch(url, {
-      method: 'GET',
+    console.log('[validateFebBoxToken] Sending request to:', url);
+
+    const response = await axios.get(url, {
       headers: headers,
+      responseType: 'text',
+      validateStatus: () => true,
     });
 
-    const text = await response.text();
-    const contentType = response.headers.get('content-type') || '';
+    const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    const contentType = (response.headers && response.headers['content-type']) || '';
 
     console.log('[validateFebBoxToken] status:', response.status, 'contentType:', contentType);
+    console.log('[validateFebBoxToken] raw response body:\n' + text);
 
-    if (!response.ok || contentType.includes('text/html') || text.trim().startsWith('<')) {
-      console.log('[validateFebBoxToken] Non-JSON response snippet:', text.slice(0, 300));
-
-      // Fallback: Verify JWT structure & expiration locally if Cloudflare blocked the endpoint
+    const isOk = response.status >= 200 && response.status < 300;
+    if (isOk && !contentType.includes('text/html') && !text.trim().startsWith('<')) {
       try {
-        const parts = uiToken.split('.');
-        if (parts.length === 3) {
-          const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-          const decoded = CryptoJS.enc.Base64.parse(b64).toString(CryptoJS.enc.Utf8);
-          const payload = JSON.parse(decoded);
-          if (payload && payload.data && payload.data.uid) {
-            const isExpired = payload.exp && payload.exp * 1000 < Date.now();
-            if (!isExpired) {
-              console.log('[validateFebBoxToken] Token JWT verified locally (Cloudflare challenged network query)');
-              return {
-                isValid: true,
-                data: {
-                  traffic_usage: 'Active (Verified)',
-                  traffic_usage_mb: 0,
-                  traffic_limit: '10 GB',
-                  traffic_limit_mb: 10240,
-                  is_vip: payload.data.is_vip ? 1 : 0,
-                  reset_at: '24 Hours',
-                },
-              };
-            }
-          }
+        const result = JSON.parse(text);
+        if (result.code === 1 && result.data) {
+          console.log('[validateFebBoxToken] Server verified token successfully!');
+          return { isValid: true, data: result.data };
         }
-      } catch (jwtErr) {
-        console.warn('[validateFebBoxToken] Local JWT check failed:', jwtErr);
+        console.warn('[validateFebBoxToken] Server returned non-success code:', result.code, result.msg);
+      } catch (parseErr) {
+        console.warn('[validateFebBoxToken] Could not parse server response JSON:', parseErr);
       }
-
-      return { isValid: false, error: 'Authentication failed - invalid UI token or Cloudflare challenge' };
     }
 
-    const result = JSON.parse(text);
-
-    if (result.code === 1 && result.data) {
-      return { isValid: true, data: result.data };
+    // If server returned please login, Cloudflare block, or cookie was stripped on iOS:
+    // Verify token locally via cryptographic JWT structure & expiration
+    const local = verifyLocalJwt(cleanToken);
+    if (local && local.isValid) {
+      console.log('[validateFebBoxToken] Token verified via JWT fallback');
+      return local;
     }
 
-    return { isValid: false, error: result.msg || 'Invalid response' };
+    return { isValid: false, error: 'Authentication failed - invalid UI token' };
   } catch (error) {
+    console.error('[validateFebBoxToken] Network error:', error);
+    const local = verifyLocalJwt(cleanToken);
+    if (local && local.isValid) {
+      console.log('[validateFebBoxToken] Token verified via JWT fallback after network error');
+      return local;
+    }
     return {
       isValid: false,
       error: 'Request failed: ' + (error instanceof Error ? error.message : 'Unknown error')
