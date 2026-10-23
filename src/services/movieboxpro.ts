@@ -4,10 +4,6 @@ import CryptoJS from 'crypto-js';
 import { getMovieTitle } from './tmdb';
 import { getPlayableStreamUrl } from './streamProxy';
 
-// ==============================================================================
-// Constants & Reversed Secrets (MovieBoxProvider / AOneRoom Ecosystem)
-// ==============================================================================
-
 const SECRET_DEFAULT_B64 = 'NzZpUmwwN3MweFNOOWpxbUVXQXQ3OUVCSlp1bElRSXNWNjRGWnIyTw==';
 
 /**
@@ -32,13 +28,10 @@ const HOST_POOL = [
 const DEFAULT_USER_AGENT = 'MovieBox/4.0.02 (Android 14; Pixel 6)';
 const EXOPLAYER_UA = 'ExoPlayerLib/2.19.1';
 
-// ==============================================================================
-// Interfaces
-// ==============================================================================
-
 export interface MovieBoxProStreamItem {
   quality: string;
   url: string;
+  rawUrl?: string;  // Original URL before proxy rewrite (set on iOS HEVC streams)
   format: string;
   codec?: string;
   dub?: string;
@@ -54,6 +47,7 @@ export interface MovieBoxProSubtitleItem {
 export interface MovieBoxProStreamResult {
   success: boolean;
   streamUrl?: string;
+  rawStreamUrl?: string;  // Original upstream URL before proxy rewrite (for casting)
   streamType?: 'hls' | 'mp4' | 'other';
   quality?: string;
   title?: string;
@@ -134,10 +128,6 @@ interface MovieBoxPlayInfo {
   }>;
   [key: string]: unknown;
 }
-
-// ==============================================================================
-// Helper Functions for Crypto, Headers & JWT
-// ==============================================================================
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -282,10 +272,6 @@ export function parseQualityNum(qualityStr: unknown): number {
     return 0;
   }
 }
-
-// ==============================================================================
-// MovieBoxPro Client Class
-// ==============================================================================
 
 export class MovieBoxProService {
   private deviceId: string;
@@ -672,7 +658,8 @@ export class MovieBoxProService {
       for (const s of streams) {
         const isHevc = s.codec === 'hevc' || s.url.includes('/h265/');
         if (isHevc && s.url) {
-          s.url = await getPlayableStreamUrl(s.url, s.headers?.Cookie);
+          s.rawUrl = s.url;
+          s.url = await getPlayableStreamUrl(s.rawUrl, s.headers?.Cookie);
         }
       }
     }
@@ -704,6 +691,7 @@ export class MovieBoxProService {
     return {
       success: true,
       streamUrl: topStream.url,
+      rawStreamUrl: topStream.rawUrl ?? topStream.url,
       streamType: topStream.format === 'm3u8' ? 'hls' : 'mp4',
       quality: topStream.quality,
       title: itemTitle,

@@ -187,13 +187,15 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
    * Handle play button press
    */
   const handlePlay = async () => {
-    const streamUrl = await fetchStream(
+    const result = await fetchStream(
       isTVShow ? selectedSeason : undefined,
       isTVShow ? selectedEpisode : undefined,
       displayTitle
     );
     
-    if (!streamUrl) return;
+    if (!result) return;
+
+    const { streamUrl, rawStreamUrl } = result;
 
     const subtitle = isTVShow 
       ? `S${selectedSeason}:E${selectedEpisode}` 
@@ -203,6 +205,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
 
     navigation.navigate('Player', {
       videoUrl: streamUrl,
+      rawVideoUrl: rawStreamUrl,
       title: displayTitle,
       subtitle,
       subtitles: subtitleLanguages.map(lang => ({
@@ -223,10 +226,11 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
    */
   const handleEpisodePress = async (episodeNumber: number) => {
     setSelectedEpisode(episodeNumber);
-    const streamUrl = await fetchStream(selectedSeason, episodeNumber);
+    const result = await fetchStream(selectedSeason, episodeNumber);
     
-    if (!streamUrl) return;
+    if (!result) return;
 
+    const { streamUrl, rawStreamUrl } = result;
     const subtitle = `S${selectedSeason}:E${episodeNumber}`;
     
     // Check if we have progress for this specific episode
@@ -241,6 +245,7 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     
     navigation.navigate('Player', {
       videoUrl: streamUrl,
+      rawVideoUrl: rawStreamUrl,
       title: displayTitle,
       subtitle,
       subtitles: subtitleLanguages.map(lang => ({

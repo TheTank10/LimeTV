@@ -34,7 +34,7 @@ export const useStreamFetcher = ({
     season?: number,
     episode?: number,
     overrideTitle?: string
-  ): Promise<string | null> => {
+  ): Promise<{ streamUrl: string; rawStreamUrl?: string } | null> => {
     // Helper to fetch streaming data via FebBox
     const fetchFebBox = async (): Promise<FebBoxStreamResult> => {
       const isTVShow = mediaType === 'tv';
@@ -90,7 +90,7 @@ export const useStreamFetcher = ({
           Alert.alert('Error', febboxResult.error || 'Failed to load stream. Please try again.');
           return null;
         }
-        return febboxResult.streamUrl;
+        return { streamUrl: febboxResult.streamUrl };
       }
 
       // For Movies: check the 'Use MovieBoxPro for movies' setting
@@ -113,7 +113,7 @@ export const useStreamFetcher = ({
 
         if (mbpResult.success && mbpResult.streamUrl) {
           console.log('[useStreamFetcher] MovieBoxPro success!');
-          return mbpResult.streamUrl;
+          return { streamUrl: mbpResult.streamUrl, rawStreamUrl: mbpResult.rawStreamUrl };
         }
 
         console.log('[useStreamFetcher] MovieBoxPro failed or found no stream, falling back to FebBox...', mbpResult.error);
@@ -121,7 +121,7 @@ export const useStreamFetcher = ({
 
         if (febboxResult.success && febboxResult.streamUrl) {
           console.log('[useStreamFetcher] FebBox fallback success!');
-          return febboxResult.streamUrl;
+          return { streamUrl: febboxResult.streamUrl };
         }
 
         const errorMsg = febboxResult.error || mbpResult.error || 'Failed to load stream. Please try again.';
@@ -134,7 +134,7 @@ export const useStreamFetcher = ({
 
         if (febboxResult.success && febboxResult.streamUrl) {
           console.log('[useStreamFetcher] FebBox success!');
-          return febboxResult.streamUrl;
+          return { streamUrl: febboxResult.streamUrl };
         }
 
         console.log('[useStreamFetcher] FebBox failed for movie, falling back to MovieBoxPro...', febboxResult.error);
@@ -142,7 +142,7 @@ export const useStreamFetcher = ({
 
         if (mbpResult.success && mbpResult.streamUrl) {
           console.log('[useStreamFetcher] MovieBoxPro fallback success!');
-          return mbpResult.streamUrl;
+          return { streamUrl: mbpResult.streamUrl, rawStreamUrl: mbpResult.rawStreamUrl };
         }
 
         const errorMsg = febboxResult.error || mbpResult.error || 'Failed to load stream. Please try again.';

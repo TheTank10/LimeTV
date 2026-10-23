@@ -38,6 +38,7 @@ export type RootStackParamList = {
   };
   Player: {
     videoUrl: string;
+    rawVideoUrl?: string;
     title: string;
     subtitle?: string;
     subtitles?: {

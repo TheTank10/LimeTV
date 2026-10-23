@@ -46,6 +46,7 @@ interface SubtitleState {
 type RootStackParamList = {
   Player: {
     videoUrl: string;
+    rawVideoUrl?: string;
     title?: string;
     subtitle?: string;
     subtitles?: SubtitleOption[];
@@ -76,6 +77,7 @@ const hexToRgba = (hex: string, opacity: number) => {
 export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const {
     videoUrl,
+    rawVideoUrl,
     title = 'LimeTV',
     subtitles = [],
     tmdbId,
@@ -444,7 +446,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     const success = await createCastSession(pin, {
-      videoUrl,
+      videoUrl: rawVideoUrl ?? videoUrl,
       title,
       currentTime,
       subLangs: subtitles.map(s => s.language),
