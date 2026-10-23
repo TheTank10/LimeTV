@@ -695,7 +695,7 @@
     const OPENSUBTITLES_URL = 'https://rest.opensubtitles.org';
 
     // ── MP4 enhancer ─────────────────────────────────────────────────────────────
-    const PROXY_URL = 'https://patch-stream.netlify.app/';
+    const PROXY_URL = 'https://stream-patching-worker.netlify.app';
 
     function isMp4Url(u) {
       try { return /\.mp4$/i.test(new URL(u).pathname); } catch { return false; }
