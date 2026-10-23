@@ -452,9 +452,8 @@
 const FIREBASE_URL = 'https://limetv-81936-default-rtdb.firebaseio.com';
 const OPENSUBTITLES_URL = 'https://rest.opensubtitles.org';
 
-// ── MP4 proxy (Cloudflare Worker) ───────────────────────────────────────────
-// Replace with your real Worker URL (no trailing slash).
-const PROXY_URL = 'https://limetv-proxy-cfw4wvc49cv1.undatehee21.deno.net';
+// ── MP4 enhancer ─────────────────────────────────────────────────────────────
+const PROXY_URL = 'https://cors-stream-patching.netlify.app';
 
 function isMp4Url(u) {
   try { return /\.mp4$/i.test(new URL(u).pathname); } catch { return false; }
@@ -559,41 +558,14 @@ async function initPlayer(data) {
   };
 
   if (isMp4Url(data.streamUrl)) {
-    // Direct MP4: try the original URL first. If the browser can't play it
-    // (e.g. Safari rejecting hev1), retry through the Cloudflare Worker,
-    // which patches hev1 -> hvc1 and adds CORS headers.
-    let usingProxy = false;
-    let readyFired = false;
-    let timer = null;
-
-    const proxiedSrc = () => {
-      let s = `${PROXY_URL}/?url=${encodeURIComponent(data.streamUrl)}`;
-      if (data.cookie) s += `&cookie=${encodeURIComponent(data.cookie)}`; // rename if your app uses a different field
+    // Route MP4 through enhancer: patches codec header for browser compatibility
+    const src = () => {
+      let s = `${PROXY_URL}/enhance?r=${encodeURIComponent(data.streamUrl)}`;
+      if (data.cookie) s += `&x=${encodeURIComponent(data.cookie)}`;
       return s;
     };
-
-    const fireReady = () => {
-      if (readyFired) return;
-      readyFired = true;
-      clearTimeout(timer);
-      onReady();
-    };
-
-    const fallbackToProxy = () => {
-      if (usingProxy) return;
-      usingProxy = true;
-      readyFired = false;
-      clearTimeout(timer);
-      console.log('[LimeTV] Direct playback failed, retrying through proxy');
-      video.src = proxiedSrc();
-      video.load();
-    };
-
-    video.addEventListener('loadedmetadata', fireReady);
-    video.addEventListener('error', fallbackToProxy);
-    timer = setTimeout(() => { if (!readyFired) fallbackToProxy(); }, 10000);
-
-    video.src = data.streamUrl;
+    video.src = src();
+    video.addEventListener('loadedmetadata', onReady, { once: true });
   } else if (Hls.isSupported()) {
     hls = new Hls({ enableWorker: true });
     hls.loadSource(data.streamUrl);
