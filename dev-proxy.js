@@ -1,14 +1,6 @@
 /* eslint-disable no-undef */
 /**
  * LimeTV Development Stream Proxy for Expo Go
- *
- * "moov-only" strategy:
- *   - Initial (non-Range) requests are proxied to patch hev1 -> hvc1 in the
- *     MP4 container header, then streamed back.
- *   - Subsequent Range requests (actual video data) are 302-redirected directly
- *     to the upstream CDN, so the movie data never touches this machine.
- *
- * This makes startup fast while still fixing the FourCC tag.
  */
 
 const http = require('http');
@@ -19,8 +11,6 @@ const DEFAULT_PORT = 8080;
 const HEV1 = Buffer.from('hev1', 'ascii');
 const HVC1 = Buffer.from('hvc1', 'ascii');
 
-// How many bytes to scan for the hev1 tag (moov atom is always in the first
-// few hundred KB of a fast-start / web-optimised MP4)
 const SCAN_WINDOW = 512 * 1024; // 512 KB
 
 function buildUpstreamHeaders(req, cookie) {
