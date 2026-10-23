@@ -88,12 +88,19 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
     selectedSeason,
   });
 
+  // Derive display title — prefer fetched details over route params
+  const displayTitle =
+    details?.details
+      ? ('title' in details.details ? details.details.title : details.details.name) || item?.title || item?.name || 'Unknown Title'
+      : item?.title || item?.name || 'Loading...';
+
   // Stream fetching
   const { fetchStream, loading: loadingStream } = useStreamFetcher({
     itemId: resolvedId!,
     mediaType,
     shareKey,
     onShareKeyUpdate: updateShareKey,
+    title: displayTitle,
   });
 
   // Silently auto-save an incoming shareKey from a deep link if the user doesn't have one
@@ -105,12 +112,6 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   // so we don't overwrite after the initial check
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingShareKey]);
-
-  // Derive display title — prefer fetched details over route params
-  const displayTitle =
-    details?.details
-      ? ('title' in details.details ? details.details.title : details.details.name) || item?.title || item?.name || 'Unknown Title'
-      : item?.title || item?.name || 'Loading...';
 
   // Get formatted data
   const year = getYear(details);
@@ -188,7 +189,8 @@ export const DetailScreen: React.FC<DetailScreenProps> = ({ route, navigation })
   const handlePlay = async () => {
     const streamUrl = await fetchStream(
       isTVShow ? selectedSeason : undefined,
-      isTVShow ? selectedEpisode : undefined
+      isTVShow ? selectedEpisode : undefined,
+      displayTitle
     );
     
     if (!streamUrl) return;

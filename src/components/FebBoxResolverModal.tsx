@@ -17,7 +17,7 @@ export const FebBoxResolverModal: React.FC = () => {
   const [task, setTask] = useState<FebBoxResolveTask | null>(null);
   const [statusText, setStatusText] = useState('Verifying connection...');
   const [showWebview, setShowWebview] = useState(false);
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<any>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -268,7 +268,7 @@ export const FebBoxResolverModal: React.FC = () => {
         },
       }}
       injectedJavaScriptBeforeContentLoaded={injectedCookieScript}
-      onShouldStartLoadWithRequest={(request) => {
+      onShouldStartLoadWithRequest={(request: any) => {
         if (request.url.startsWith('febbox://')) {
           console.log('[FebBoxResolverModal] Blocking deep link:', request.url);
           return false;
@@ -285,11 +285,11 @@ export const FebBoxResolverModal: React.FC = () => {
           }, 3500);
         }
       }}
-      onError={(syntheticEvent) => {
+      onError={(syntheticEvent: any) => {
         const { nativeEvent } = syntheticEvent;
         console.warn('[FebBoxResolverModal] WebView error:', nativeEvent);
       }}
-      onHttpError={(syntheticEvent) => {
+      onHttpError={(syntheticEvent: any) => {
         const { nativeEvent } = syntheticEvent;
         console.warn('[FebBoxResolverModal] WebView HTTP error status:', nativeEvent.statusCode);
       }}

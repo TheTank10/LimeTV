@@ -119,7 +119,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loadingSubtitle, setLoadingSubtitle] = useState(false);
   const [subtitleOffset, setSubtitleOffset] = useState(0);
   const [subtitleStates, setSubtitleStates] = useState<{ [languageCode: string]: SubtitleState }>({});
-  
+
   // Cast to PC states
   const [castPin, setCastPin] = useState<string | null>(null);
   const [isCasting, setIsCasting] = useState(false);
@@ -129,8 +129,15 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
   const isSeekingRef = useRef(false);
   const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const isHls = videoUrl.includes('.m3u8');
   const player = useVideoPlayer(
-    { uri: videoUrl, contentType: 'hls' },
+    {
+      uri: videoUrl,
+      ...(isHls ? { contentType: 'hls' as const } : {}),
+      headers: {
+        'User-Agent': 'ExoPlayerLib/2.19.1',
+      },
+    },
     (player) => {
       player.loop = false;
       player.staysActiveInBackground = true;
@@ -423,19 +430,19 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
     // Pause mobile playback
     player.pause();
     setIsPlaying(false);
-    
+
     // Generate PIN code
     const pin = generatePinCode();
     setCastPin(pin);
     setIsCasting(true);
     setShowCastModal(true);
-    
+
     // Determine active subtitle language
     let subLangCode = 'off';
     if (selectedSubIndex >= 0 && subtitles[selectedSubIndex]) {
       subLangCode = subtitles[selectedSubIndex].language;
     }
-    
+
     const success = await createCastSession(pin, {
       videoUrl,
       title,
@@ -448,7 +455,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
       selectedSubLanguage: subLangCode,
       subtitleStyling: styling,
     });
-    
+
     setIsCasting(false);
     if (!success) {
       alert('Failed to connect to casting server. Check your connection.');
@@ -666,7 +673,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.castModalDesc}>
               Cast this movie/show to your computer browser.
             </Text>
-            
+
             {isCasting ? (
               <ActivityIndicator size="large" color="#a3e635" style={{ marginVertical: 20 }} />
             ) : (
@@ -691,7 +698,7 @@ export const PlayerScreen: React.FC<Props> = ({ navigation, route }) => {
                       `https://limetv-81936-default-rtdb.firebaseio.com/sessions/${castPin}.json`,
                       { method: 'DELETE' }
                     );
-                  } catch (_) {}
+                  } catch (_) { }
                 }
                 setShowCastModal(false);
                 setCastPin(null);

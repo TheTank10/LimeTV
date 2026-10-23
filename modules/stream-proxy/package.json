@@ -1,0 +1,7 @@
+{
+  "name": "stream-proxy",
+  "version": "1.0.0",
+  "description": "On-device local HTTP streaming proxy for hev1 to hvc1 patch on iOS",
+  "main": "index.ts",
+  "types": "index.ts"
+}

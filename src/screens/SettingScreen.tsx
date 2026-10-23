@@ -18,7 +18,8 @@ import {
   useSubtitleLanguages,
   useFebBoxServer,
   useSubtitleStyling,
-  useFebBox4K
+  useFebBox4K,
+  useMovieBoxPro
 } from '../hooks';
 import {
   TokenInput,
@@ -35,12 +36,17 @@ export const SettingsScreen: React.FC = () => {
   const { selectedServer, availableServers, isLoading: serverLoading, selectServer } = useFebBoxServer();
   const { styling, isLoading: stylingLoading, updateStyling, resetToDefault } = useSubtitleStyling();
   const { is4KEnabled, isLoading: fourKLoading, toggle4K } = useFebBox4K();
+  const {
+    useMovieBoxProForMovies,
+    isLoading: movieBoxProLoading,
+    toggleMovieBoxProForMovies,
+  } = useMovieBoxPro();
 
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [showStylingCustomizer, setShowStylingCustomizer] = useState(false);
 
-  const isLoading = tokensLoading || languagesLoading || serverLoading || stylingLoading || fourKLoading;
+  const isLoading = tokensLoading || languagesLoading || serverLoading || stylingLoading || fourKLoading || movieBoxProLoading;
 
   if (isLoading) {
     return (
@@ -131,6 +137,33 @@ export const SettingsScreen: React.FC = () => {
               <View style={styles.noteContainer}>
                 <Text style={styles.noteText}>
                   <Text style={styles.noteBold}>Note:</Text> To get more Febbox UI tokens use multiple browsers or devices. Logging out of your account resets the UI token.
+                </Text>
+              </View>
+
+              {/* MovieBoxPro Section */}
+              <Text style={styles.sectionHeader}>MOVIEBOXPRO</Text>
+              <View style={styles.section}>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <Ionicons name="film-outline" size={22} color="rgba(201, 255, 0, 0.9)" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.addButtonText}>Use MovieBoxPro for movies</Text>
+                      <Text style={styles.serverSubtext}>Try MovieBoxPro before FebBox for movies</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.toggle, useMovieBoxProForMovies && styles.toggleActive]}
+                    onPress={toggleMovieBoxProForMovies}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.toggleThumb, useMovieBoxProForMovies && styles.toggleThumbActive]} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.noteContainer}>
+                <Text style={styles.noteText}>
+                  <Text style={styles.noteBold}>Note:</Text> When checked, MovieBoxPro is tried before FebBox for movies. When unchecked, MovieBoxPro is still used as a fallback if FebBox cannot find a movie.
                 </Text>
               </View>
 

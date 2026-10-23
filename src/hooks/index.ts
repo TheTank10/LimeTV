@@ -21,6 +21,7 @@ export { useFebBoxTokens } from './Settings/useFebboxTokens';
 export { useSubtitleLanguages } from './Settings/useSubtitleLanguages';
 export { useFebBoxServer } from './Settings/useFebboxServer';
 export { useFebBox4K } from './Settings/useFebbox4K';
+export { useMovieBoxPro } from './Settings/useMovieBoxPro';
 
 // Shared Hooks 
 export { useSubtitleStyling } from './Shared/useSubtitleStyling';

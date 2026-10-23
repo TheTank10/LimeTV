@@ -450,3 +450,19 @@ export const getImdbId = async (
     return null;
   }
 };
+
+export const getMovieTitle = async (
+  id: number | string
+): Promise<string | null> => {
+  try {
+    const response = await tmdbClient.get(`/movie/${id}`);
+    return response.data?.title || response.data?.original_title || null;
+  } catch (error: unknown) {
+    console.error('ERROR GETTING MOVIE TITLE:');
+    if (axios.isAxiosError(error)) {
+      console.error('  Status:', error.response?.status);
+      console.error('  Response data:', JSON.stringify(error.response?.data, null, 2));
+    }
+    return null;
+  }
+};

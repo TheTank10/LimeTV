@@ -1,0 +1,10 @@
+{
+  "name": "StreamProxy",
+  "platforms": ["apple", "ios"],
+  "apple": {
+    "modules": ["StreamProxyModule"]
+  },
+  "ios": {
+    "modules": ["StreamProxyModule"]
+  }
+}

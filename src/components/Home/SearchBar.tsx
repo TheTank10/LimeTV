@@ -23,7 +23,7 @@ export const SearchBar: React.FC<Props> = ({
   onClear,
   scale,
 }) => {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ElementRef<typeof TextInput>>(null);
 
   const animatedStyle = {
     transform: [
